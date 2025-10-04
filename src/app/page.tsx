@@ -166,18 +166,21 @@ export default function Home() {
   };
 
   const handleGenerate = async () => {
-    if (!prompt) return;
+    // Require an image; text is optional
+    if (!uploadedFile) {
+      alert("Please upload an image to generate a world.");
+      return;
+    }
 
     setIsGenerating(true);
 
     try {
       const formData = new FormData();
-      formData.append("textPrompt", prompt);
-      formData.append("model", "Marble 0.1-mini");
-
-      if (uploadedFile) {
-        formData.append("image", uploadedFile);
+      if (prompt.trim().length > 0) {
+        formData.append("textPrompt", prompt.trim());
       }
+      formData.append("model", "Marble 0.1-mini");
+      formData.append("image", uploadedFile);
 
       const response = await fetch("/api/world/generate", {
         method: "POST",
@@ -196,7 +199,7 @@ export default function Home() {
         status: data.status,
         createdAt: Date.now(),
         model: "Marble 0.1-mini",
-        prompt: prompt,
+        prompt: prompt.trim(),
         error: null,
         output: null,
       };
@@ -235,9 +238,14 @@ export default function Home() {
       return;
     }
 
+    const baseName =
+      job.prompt && job.prompt.trim().length > 0
+        ? job.prompt.substring(0, 50) + (job.prompt.length > 50 ? "..." : "")
+        : "Untitled World";
+
     const newWorld: World = {
       id: job.id,
-      name: job.prompt.substring(0, 50) + (job.prompt.length > 50 ? "..." : ""),
+      name: baseName,
       thumbnailUrl:
         job.output.cond_image_url || job.output.posed_cond_image || "",
       splatUrl: job.output.spz_urls?.["500k"] || job.output.ply_url || "",
@@ -516,7 +524,10 @@ export default function Home() {
                         className="max-h-64 mx-auto rounded-lg shadow-lg"
                       />
                       <button
-                        onClick={() => setUploadedImage(null)}
+                        onClick={() => {
+                          setUploadedImage(null);
+                          setUploadedFile(null);
+                        }}
                         className="text-red-500 hover:text-red-700 font-semibold"
                       >
                         Remove Image
@@ -559,7 +570,7 @@ export default function Home() {
               {/* Text Prompt Section */}
               <div>
                 <label className="block text-lg font-semibold text-gray-800 mb-3">
-                  Describe Your World
+                  Describe Your World (optional)
                 </label>
                 <textarea
                   value={prompt}
@@ -579,7 +590,7 @@ export default function Home() {
                 </button>
                 <button
                   onClick={handleGenerate}
-                  disabled={!prompt || isGenerating}
+                  disabled={!uploadedImage || isGenerating}
                   className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   {isGenerating ? "🔄 Generating..." : "🎨 Generate World"}

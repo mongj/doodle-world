@@ -17,12 +17,17 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const image = formData.get("image") as File | null;
-    const textPrompt = formData.get("textPrompt") as string;
+    const textPromptRaw = formData.get("textPrompt") as string | null;
+    const textPrompt =
+      typeof textPromptRaw === "string" && textPromptRaw.trim().length > 0
+        ? textPromptRaw.trim()
+        : null;
     const model = (formData.get("model") as string) || "Marble 0.1-mini";
 
-    if (!textPrompt) {
+    // Require image; text is optional when image is provided
+    if (!image) {
       return NextResponse.json(
-        { error: "Text prompt is required" },
+        { error: "Image is required to generate a world" },
         { status: 400 }
       );
     }
@@ -45,9 +50,21 @@ export async function POST(request: NextRequest) {
       else if (extension === "gif") mimeType = "image/gif";
       else if (extension === "webp") mimeType = "image/webp";
 
-      // Call Gemini 2.5 image API to generate new image based on text prompt
+      // Call Gemini 2.5 image API to generate new image; include text only if provided
       if (GEMINI_API_KEY) {
         try {
+          const parts: any[] = [
+            {
+              inlineData: {
+                mime_type: mimeType,
+                data: inputImageBase64,
+              },
+            },
+          ];
+          if (textPrompt) {
+            parts.push({ text: textPrompt });
+          }
+
           const geminiResponse = await fetch(
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent",
             {
@@ -59,15 +76,7 @@ export async function POST(request: NextRequest) {
               body: JSON.stringify({
                 contents: [
                   {
-                    parts: [
-                      {
-                        inlineData: {
-                          mime_type: mimeType,
-                          data: inputImageBase64,
-                        },
-                      },
-                      { text: textPrompt },
-                    ],
+                    parts,
                   },
                 ],
               }),
@@ -122,7 +131,7 @@ export async function POST(request: NextRequest) {
         seed: null,
         model: model,
         prompt: {
-          text_prompt: textPrompt,
+          text_prompt: textPrompt && textPrompt.length > 0 ? textPrompt : null,
           image_prompt: imageBase64
             ? {
                 data_base64: imageBase64,
@@ -165,7 +174,7 @@ export async function POST(request: NextRequest) {
       status: result.status,
       createdAt: Date.now(),
       model: model,
-      prompt: textPrompt,
+      prompt: textPrompt || "",
       error: null,
       output: null,
     };
