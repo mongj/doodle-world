@@ -341,16 +341,6 @@ export default function Home() {
           </button>
         </div>
 
-        {/* CTA Section */}
-        <div className="text-center mb-16">
-          <Link
-            href="/tavern"
-            className="inline-block bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xl font-bold px-12 py-6 rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all"
-          >
-            Enter the Tavern →
-          </Link>
-        </div>
-
         {/* Jobs Section */}
         {jobs.length > 0 && (
           <div className="max-w-7xl mx-auto">
