@@ -89,6 +89,7 @@ const PROJECTILE_SPAWN_OFFSET =
   PLAYER_RADIUS + CONFIG.PROJECTILE_RADIUS + 0.15 * GLOBAL_SCALE;
 const FIXED_TIME_STEP = 1 / 60;
 const MAX_SUBSTEPS = 5;
+const DYNAMIC_MODEL_SCALE = 0.5;
 
 // Utility functions
 function setupMaterialsForLighting(
@@ -783,7 +784,12 @@ export default function TavernScene() {
             );
 
             const geometry = mesh.geometry.clone();
-            geometry.scale(tempScale.x, tempScale.y, tempScale.z);
+            const scaledScale = new THREE.Vector3(
+              tempScale.x * DYNAMIC_MODEL_SCALE,
+              tempScale.y * DYNAMIC_MODEL_SCALE,
+              tempScale.z * DYNAMIC_MODEL_SCALE
+            );
+            geometry.scale(scaledScale.x, scaledScale.y, scaledScale.z);
 
             const vertices = new Float32Array(
               geometry.attributes.position.array
@@ -800,6 +806,7 @@ export default function TavernScene() {
             const worldPosition = tempPosition.clone();
             const localPosition = worldPosition.clone();
             dynamicEntry.root.worldToLocal(localPosition);
+            localPosition.multiplyScalar(DYNAMIC_MODEL_SCALE);
 
             const localQuaternion = tempQuaternion.clone().premultiply(
               parentQuaternionInverse
@@ -820,7 +827,7 @@ export default function TavernScene() {
             mesh.parent?.remove(mesh);
             mesh.position.copy(localPosition);
             mesh.quaternion.copy(localQuaternion);
-            mesh.scale.copy(tempScale);
+            mesh.scale.copy(scaledScale);
             dynamicEntry.root.add(mesh);
 
             meshToBody.set(mesh, sharedBody);
