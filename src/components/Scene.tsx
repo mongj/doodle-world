@@ -8,11 +8,15 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
-import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 const Whiteboard = dynamic(() => import("./Whiteboard"), { ssr: false });
+
+interface SceneProps {
+  meshUrl: string;
+  splatUrl: string;
+}
 
 const GLOBAL_SCALE = 0.7;
 
@@ -21,51 +25,19 @@ const CONFIG = {
   RAPIER_INIT_TIMEOUT: 10000,
   MOVE_SPEED: 3 * GLOBAL_SCALE,
   PROJECTILE_SPEED: 15 * GLOBAL_SCALE,
-  VOICE_COOLDOWN: 1.0,
-  MUSIC_VOLUME: 0.15,
-  VOICE_VOLUME: 0.4,
   PROJECTILE_RADIUS: 0.2 * GLOBAL_SCALE,
   PROJECTILE_RESTITUTION: 0.9,
   ENVIRONMENT_RESTITUTION: 0.0,
-  BONE_COLLIDER_RADIUS: 0.3,
   BOUNCE_DETECTION_THRESHOLD: 2.0,
-  CHARACTER_HIT_DISTANCE: 0.8,
   VELOCITY_PITCH_RANGE: { min: 0.9, max: 1.1 },
   VOLUME_DISTANCE_MAX: 10,
   ENVIRONMENT: {
     MESH: "test1.glb",
     SPLATS: "test1.spz",
     SPLAT_SCALE: 3,
-    MESH_ROTATION: [Math.PI / 2, Math.PI, Math.PI],
-  },
-  CHARACTERS: {
-    ORC: {
-      MODEL: "orc.glb",
-      POSITION: [-2, -0.8, 0],
-      ROTATION: Math.PI / 2,
-      SCALE: [1, 1, 1],
-    },
-    BARTENDER: {
-      MODEL: "Bartending.fbx",
-      POSITION: [3.0, -0.7, 2],
-      ROTATION: -Math.PI / 2,
-      SCALE: [0.007, 0.007, 0.007],
-    },
   },
   AUDIO_FILES: {
-    BOUNCE: "bounce.mp3",
-    BACKGROUND_MUSIC: "kitchen_music.mp3",
-    ORC_VOICES: [
-      "lines/rocks.mp3",
-      "lines/mushroom.mp3",
-      "lines/watch.mp3",
-      "lines/vex.mp3",
-    ],
-    BARTENDER_VOICES: [
-      "lines/working.mp3",
-      "lines/juggler.mp3",
-      "lines/drink.mp3",
-    ],
+    BOUNCE: "/bounce.mp3",
   },
   JENGA: {
     ENABLED: true,
@@ -152,48 +124,6 @@ function setupMaterialsForLighting(
   });
 }
 
-function createBoneColliders(character: THREE.Object3D, world: RAPIER.World) {
-  const boneColliders: Array<{ bone: THREE.Bone; body: RAPIER.RigidBody }> = [];
-  character.traverse((child) => {
-    if ((child as THREE.Bone).isBone) {
-      const bone = child as THREE.Bone;
-      const bonePos = new THREE.Vector3();
-      bone.getWorldPosition(bonePos);
-
-      const colliderDesc = RAPIER.ColliderDesc.ball(
-        CONFIG.BONE_COLLIDER_RADIUS
-      );
-      const bodyDesc =
-        RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(
-          bonePos.x,
-          bonePos.y,
-          bonePos.z
-        );
-
-      const body = world.createRigidBody(bodyDesc);
-      world.createCollider(colliderDesc, body);
-      boneColliders.push({ bone, body });
-    }
-  });
-  return boneColliders;
-}
-
-async function loadAudioFiles(audioContext: AudioContext, fileList: string[]) {
-  try {
-    const buffers = await Promise.all(
-      fileList.map((file) =>
-        fetch(file)
-          .then((response) => response.arrayBuffer())
-          .then((arrayBuffer) => audioContext.decodeAudioData(arrayBuffer))
-      )
-    );
-    return buffers;
-  } catch (error) {
-    console.error("Error loading audio files:", error);
-    return [];
-  }
-}
-
 function playAudio(
   audioContext: AudioContext | null,
   buffer: AudioBuffer | null,
@@ -216,7 +146,8 @@ function playAudio(
   return source;
 }
 
-export default function TavernScene() {
+export default function Scene({ meshUrl, splatUrl }: SceneProps) {
+  console.log("rendering scene:", { meshUrl: meshUrl, splatUrl: splatUrl });
   const containerRef = useRef<HTMLDivElement>(null);
   const reticleRef = useRef<HTMLDivElement>(null);
   const startButtonRef = useRef<HTMLDivElement>(null);
@@ -230,10 +161,18 @@ export default function TavernScene() {
   const [uploadProgress, setUploadProgress] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState("Loading scene...");
+  // Determine mesh rotation based on URL source
+  const isMarbleMesh = meshUrl.includes("cdn.marble.worldlabs.ai");
+  const meshRotation = isMarbleMesh
+    ? [0, 0, 0]
+    : [Math.PI / 2, Math.PI, Math.PI];
+
   const [meshRotationState, setMeshRotationState] = useState({
-    x: CONFIG.ENVIRONMENT.MESH_ROTATION[0],
-    y: CONFIG.ENVIRONMENT.MESH_ROTATION[1],
-    z: CONFIG.ENVIRONMENT.MESH_ROTATION[2],
+    x: meshRotation[0],
+    y: meshRotation[1],
+    z: meshRotation[2],
   });
   const [playerPositionState, setPlayerPositionState] = useState({
     x: 0,
@@ -519,8 +458,6 @@ export default function TavernScene() {
       // Audio system
       let audioContext: AudioContext | null = null;
       const audioBuffers: Record<string, AudioBuffer | AudioBuffer[]> = {};
-      const voiceCooldowns: Record<string, number> = { orc: 0, bartender: 0 };
-      let musicGain: GainNode | null = null;
       const muted = false;
 
       function initAudio() {
@@ -529,76 +466,32 @@ export default function TavernScene() {
           (window as Window & { webkitAudioContext?: typeof AudioContext })
             .webkitAudioContext)();
 
-        Promise.all([
-          fetch(CONFIG.AUDIO_FILES.BOUNCE)
-            .then((response) => response.arrayBuffer())
-            .then((buffer) => audioContext!.decodeAudioData(buffer))
-            .then((buffer) => {
-              audioBuffers.bounce = buffer;
-              return buffer;
-            }),
-          loadAudioFiles(audioContext, CONFIG.AUDIO_FILES.ORC_VOICES).then(
-            (buffers) => {
-              audioBuffers.orcVoices = buffers;
-              return buffers;
+        fetch(CONFIG.AUDIO_FILES.BOUNCE)
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(`Failed to load audio: ${response.status}`);
             }
-          ),
-          loadAudioFiles(
-            audioContext,
-            CONFIG.AUDIO_FILES.BARTENDER_VOICES
-          ).then((buffers) => {
-            audioBuffers.bartenderVoices = buffers;
-            return buffers;
-          }),
-          fetch(CONFIG.AUDIO_FILES.BACKGROUND_MUSIC)
-            .then((response) => response.arrayBuffer())
-            .then((buffer) => audioContext!.decodeAudioData(buffer))
-            .then((buffer) => {
-              audioBuffers.backgroundMusic = buffer;
-              startBackgroundMusic();
-            }),
-        ])
-          .then(() => console.log("✓ Audio system initialized"))
-          .catch((error) => console.error("Audio loading error:", error));
-      }
-
-      function startBackgroundMusic() {
-        if (!audioContext || !audioBuffers.backgroundMusic) return;
-
-        function playMusic() {
-          const source = audioContext!.createBufferSource();
-          source.buffer = audioBuffers.backgroundMusic as AudioBuffer;
-          musicGain = audioContext!.createGain();
-          source.connect(musicGain);
-          musicGain.connect(audioContext!.destination);
-          musicGain.gain.value = muted ? 0 : CONFIG.MUSIC_VOLUME;
-          source.start(0);
-          source.onended = playMusic;
-        }
-        playMusic();
-      }
-
-      function playVoiceLine(character: string) {
-        const cooldownKey = character;
-        if (voiceCooldowns[cooldownKey] > 0) return;
-
-        const voiceBuffers = audioBuffers[`${character}Voices`] as
-          | AudioBuffer[]
-          | undefined;
-        if (!voiceBuffers || voiceBuffers.length === 0) return;
-
-        const randomBuffer =
-          voiceBuffers[Math.floor(Math.random() * voiceBuffers.length)];
-        playAudio(audioContext, randomBuffer, CONFIG.VOICE_VOLUME, 1.0, muted);
-        voiceCooldowns[cooldownKey] = CONFIG.VOICE_COOLDOWN;
-        console.log(`${character} speaks`);
+            return response.arrayBuffer();
+          })
+          .then((buffer) => audioContext!.decodeAudioData(buffer))
+          .then((buffer) => {
+            audioBuffers.bounce = buffer;
+            console.log("✓ Audio system initialized");
+          })
+          .catch((error) => {
+            console.warn(
+              "Audio loading failed (audio will be disabled):",
+              error
+            );
+            // Audio is optional, don't block the app
+          });
       }
 
       function playBounceSound(
         position: THREE.Vector3,
         velocity: THREE.Vector3
       ) {
-        if (!audioBuffers.bounce) return;
+        if (!audioContext || !audioBuffers.bounce) return;
 
         const distance = camera.position.distanceTo(position);
         let volume = Math.max(
@@ -642,13 +535,14 @@ export default function TavernScene() {
       >();
 
       const gltfLoader = new GLTFLoader();
-      gltfLoader.load(CONFIG.ENVIRONMENT.MESH, (gltf) => {
+      setLoadingMessage("Loading collision mesh...");
+      gltfLoader.load(meshUrl, (gltf) => {
         environment = gltf.scene;
         environment.scale.set(-1, -1, 1);
         environment.rotation.set(
-          CONFIG.ENVIRONMENT.MESH_ROTATION[0],
-          CONFIG.ENVIRONMENT.MESH_ROTATION[1],
-          CONFIG.ENVIRONMENT.MESH_ROTATION[2]
+          meshRotation[0],
+          meshRotation[1],
+          meshRotation[2]
         );
         setMeshRotationState({
           x: environment.rotation.x,
@@ -657,6 +551,9 @@ export default function TavernScene() {
         });
         environment.updateMatrixWorld(true);
         scene.add(environment);
+
+        // Create a single fixed rigid body for all environment colliders
+        const envBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
 
         environment.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
@@ -682,16 +579,16 @@ export default function TavernScene() {
               vertices,
               indices
             ).setRestitution(CONFIG.ENVIRONMENT_RESTITUTION);
-            const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-            world.createCollider(colliderDesc, body);
+            world.createCollider(colliderDesc, envBody);
           }
         });
 
         console.log("✓ Environment collision mesh loaded");
+        setLoadingMessage("Loading Gaussian splats...");
       });
 
       splatMesh = new SplatMesh({
-        url: CONFIG.ENVIRONMENT.SPLATS,
+        url: splatUrl,
         onLoad: () => {
           console.log(
             `✓ Gaussian splats loaded (${splatMesh!.numSplats} splats)`
@@ -699,6 +596,7 @@ export default function TavernScene() {
           splatsLoaded = true;
           if (environment) environment.visible = false;
           scene.add(splatMesh!);
+          setIsLoading(false);
         },
       });
 
@@ -706,64 +604,12 @@ export default function TavernScene() {
       splatMesh.scale.set(SPLAT_SCALE, -SPLAT_SCALE, SPLAT_SCALE);
       splatMesh.position.set(0, 0, 0);
 
-      // Characters
-      const characters: Record<string, THREE.Object3D> = {};
+      // Characters (none in generic scene)
       const animationMixers: Record<string, THREE.AnimationMixer> = {};
       const boneColliders: Record<
         string,
         Array<{ bone: THREE.Bone; body: RAPIER.RigidBody }>
       > = {};
-
-      gltfLoader.load(CONFIG.CHARACTERS.ORC.MODEL, (gltf) => {
-        const orc = gltf.scene;
-        const config = CONFIG.CHARACTERS.ORC;
-        orc.rotation.y = config.ROTATION;
-        orc.scale.set(config.SCALE[0], config.SCALE[1], config.SCALE[2]);
-        orc.position.set(
-          config.POSITION[0],
-          config.POSITION[1],
-          config.POSITION[2]
-        );
-        scene.add(orc);
-        setupMaterialsForLighting(orc);
-
-        if (gltf.animations && gltf.animations.length > 0) {
-          animationMixers.orc = new THREE.AnimationMixer(orc);
-          for (const clip of gltf.animations) {
-            animationMixers.orc.clipAction(clip).play();
-          }
-        }
-
-        boneColliders.orc = createBoneColliders(orc, world);
-        characters.orc = orc;
-        console.log("✓ Orc character loaded");
-      });
-
-      const fbxLoader = new FBXLoader();
-      fbxLoader.load(CONFIG.CHARACTERS.BARTENDER.MODEL, (fbx) => {
-        const bartender = fbx;
-        const config = CONFIG.CHARACTERS.BARTENDER;
-        bartender.scale.set(config.SCALE[0], config.SCALE[1], config.SCALE[2]);
-        bartender.position.set(
-          config.POSITION[0],
-          config.POSITION[1],
-          config.POSITION[2]
-        );
-        bartender.rotation.y = config.ROTATION;
-        scene.add(bartender);
-        setupMaterialsForLighting(bartender, 2.0);
-
-        if (fbx.animations && fbx.animations.length > 0) {
-          animationMixers.bartender = new THREE.AnimationMixer(bartender);
-          for (const clip of fbx.animations) {
-            animationMixers.bartender.clipAction(clip).play();
-          }
-        }
-
-        boneColliders.bartender = createBoneColliders(bartender, world);
-        characters.bartender = bartender;
-        console.log("✓ Bartender character loaded");
-      });
 
       async function loadDynamicModel(url: string): Promise<void> {
         try {
@@ -909,10 +755,6 @@ export default function TavernScene() {
       // Input handling
       const keyState: Record<string, boolean> = {};
       let debugMode = false;
-      const debugVisuals: Record<
-        string,
-        Array<{ sphere: THREE.Mesh; bone: THREE.Bone }>
-      > = { orc: [], bartender: [] };
 
       let hover: {
         body: RAPIER.RigidBody | null;
@@ -1018,29 +860,6 @@ export default function TavernScene() {
               mesh.material = envDebugMaterial;
             }
           });
-
-          const characterNames = ["orc", "bartender"];
-          for (let index = 0; index < characterNames.length; index++) {
-            const character = characterNames[index];
-            if (
-              boneColliders[character] &&
-              debugVisuals[character].length === 0
-            ) {
-              const color = index === 0 ? 0xff00ff : 0x00ffff;
-              for (const { bone } of boneColliders[character]) {
-                const pos = new THREE.Vector3();
-                bone.getWorldPosition(pos);
-
-                const sphere = new THREE.Mesh(
-                  new THREE.SphereGeometry(CONFIG.BONE_COLLIDER_RADIUS, 16, 16),
-                  new THREE.MeshBasicMaterial({ color, wireframe: true })
-                );
-                sphere.position.copy(pos);
-                scene.add(sphere);
-                debugVisuals[character].push({ sphere, bone });
-              }
-            }
-          }
         } else {
           environment.visible = false;
           scene.add(splatMesh);
@@ -1053,13 +872,6 @@ export default function TavernScene() {
               }
             }
           });
-
-          for (const character of ["orc", "bartender"]) {
-            for (const { sphere } of debugVisuals[character]) {
-              scene.remove(sphere);
-            }
-            debugVisuals[character] = [];
-          }
         }
       }
 
@@ -1173,10 +985,6 @@ export default function TavernScene() {
 
         updateMovement();
 
-        for (const key of Object.keys(voiceCooldowns)) {
-          if (voiceCooldowns[key] > 0) voiceCooldowns[key] -= frameTime;
-        }
-
         physicsAccumulator += frameTime;
         const steps = Math.min(
           Math.floor(physicsAccumulator / FIXED_TIME_STEP),
@@ -1211,20 +1019,6 @@ export default function TavernScene() {
               if (velocityChange.length() > CONFIG.BOUNCE_DETECTION_THRESHOLD) {
                 const position = new THREE.Vector3(pos.x, pos.y, pos.z);
                 playBounceSound(position, currentVelocity);
-
-                for (const character of ["orc", "bartender"]) {
-                  if (boneColliders[character]) {
-                    const hit = boneColliders[character].some(({ bone }) => {
-                      const bonePos = new THREE.Vector3();
-                      bone.getWorldPosition(bonePos);
-                      return (
-                        position.distanceTo(bonePos) <
-                        CONFIG.CHARACTER_HIT_DISTANCE
-                      );
-                    });
-                    if (hit) playVoiceLine(character);
-                  }
-                }
               }
 
               projectile.lastVelocity.copy(currentVelocity);
@@ -1327,28 +1121,6 @@ export default function TavernScene() {
 
         for (const mixer of Object.values(animationMixers)) {
           mixer?.update(frameTime);
-        }
-
-        for (const colliders of Object.values(boneColliders)) {
-          if (!mounted) break;
-          for (const { bone, body } of colliders) {
-            if (!mounted) break;
-            try {
-              const pos = new THREE.Vector3();
-              bone.getWorldPosition(pos);
-              body.setTranslation({ x: pos.x, y: pos.y, z: pos.z }, true);
-            } catch {
-              continue;
-            }
-          }
-        }
-
-        if (debugMode) {
-          for (const character of ["orc", "bartender"]) {
-            for (const { sphere, bone } of debugVisuals[character]) {
-              bone.getWorldPosition(sphere.position);
-            }
-          }
         }
 
         renderer.render(scene, camera);
@@ -1718,7 +1490,22 @@ export default function TavernScene() {
     <>
       <div ref={containerRef} className="w-full h-screen" />
 
-      {showUI && (
+      {/* Loading Screen */}
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black z-50">
+          <div className="text-center">
+            <div className="mb-6">
+              <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-purple-500 mx-auto"></div>
+            </div>
+            <h2 className="text-3xl font-bold text-white mb-2">
+              Loading World
+            </h2>
+            <p className="text-gray-400 text-lg">{loadingMessage}</p>
+          </div>
+        </div>
+      )}
+
+      {showUI && !isLoading && (
         <>
           {/* Start Button Overlay */}
           <div
@@ -1780,7 +1567,7 @@ export default function TavernScene() {
           />
 
           {/* Player position HUD */}
-          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm font-medium tracking-wide shadow-lg backdrop-blur pointer-events-none">
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm font-medium tracking-wide shadow-lg backdrop-blur pointer-events-none">
             <span className="mr-3">Player Position:</span>
             <span className="mr-3">
               X {formatPosition(playerPositionState.x)}
@@ -1789,18 +1576,6 @@ export default function TavernScene() {
               Y {formatPosition(playerPositionState.y)}
             </span>
             <span>Z {formatPosition(playerPositionState.z)}</span>
-          </div>
-
-          {/* Mesh rotation HUD */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm font-medium tracking-wide shadow-lg backdrop-blur pointer-events-none">
-            <span className="mr-3">Mesh Rotation:</span>
-            <span className="mr-3">
-              X {formatRotation(meshRotationState.x)}
-            </span>
-            <span className="mr-3">
-              Y {formatRotation(meshRotationState.y)}
-            </span>
-            <span>Z {formatRotation(meshRotationState.z)}</span>
           </div>
 
           {/* Model Generation Progress Bar */}
