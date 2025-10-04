@@ -45,4 +45,6 @@ meshy_status.json
 # job storage
 /jobs
 
+# meshy task status files
+/meshy_tasks
 *.jpg

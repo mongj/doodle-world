@@ -104,6 +104,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Check if webhook has already updated this task's status
+    const fs = await import('fs');
+    const path = await import('path');
+    const taskFilePath = path.join(process.cwd(), "meshy_tasks", `${taskId}.json`);
+    
+    if (fs.existsSync(taskFilePath)) {
+      try {
+        const cachedContent = fs.readFileSync(taskFilePath, "utf-8");
+        const cachedData = JSON.parse(cachedContent);
+        
+        if (cachedData.receivedViaWebhook) {
+          console.log(`[Text-to-3D] Using webhook data for task ${taskId}`);
+          return NextResponse.json(cachedData);
+        }
+      } catch (err) {
+        console.error("Error reading webhook cache:", err);
+      }
+    }
+
+    // No webhook data yet, fetch from Meshy API
+    console.log(`[Text-to-3D] Fetching from Meshy API for task ${taskId}`);
     const statusUrl = `${TEXT_TO_3D_URL}/${taskId}`;
     const statusRes = await fetch(statusUrl, {
       headers: { Authorization: `Bearer ${MESHY_API_KEY}` },
