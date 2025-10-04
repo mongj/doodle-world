@@ -74,10 +74,24 @@ export default function Whiteboard({
 
       onGenerationProgress(5, "Sending to Meshy AI...");
 
-      // Poll for progress
+      const response = await fetch("/api/whiteboard/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_url: imageUrl }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to create 3D model");
+      }
+
+      const taskId = data.id;
+      console.log('Meshy task created:', taskId);
+
+      // Poll for progress with taskId
       const progressInterval = setInterval(async () => {
         try {
-          const statusRes = await fetch("/api/whiteboard/status");
+          const statusRes = await fetch(`/api/whiteboard/status?taskId=${taskId}`);
           if (statusRes.ok) {
             const statusData = await statusRes.json();
             const progress = statusData.progress || 0;
@@ -93,20 +107,6 @@ export default function Whiteboard({
         }
       }, 2000);
 
-      const response = await fetch("/api/whiteboard/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_url: imageUrl }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        clearInterval(progressInterval);
-        throw new Error(data?.error || "Failed to create 3D model");
-      }
-
-      console.log('Meshy task created:', data);
-
       // Now poll for completion (webhook updates the status file)
       const maxTries = 120;
       const delayMs = 3000;
@@ -114,7 +114,7 @@ export default function Whiteboard({
       for (let i = 0; i < maxTries; i++) {
         await new Promise(resolve => setTimeout(resolve, delayMs));
         
-        const statusRes = await fetch("/api/whiteboard/status");
+        const statusRes = await fetch(`/api/whiteboard/status?taskId=${taskId}`);
         if (!statusRes.ok) continue;
         
         const statusData = await statusRes.json();

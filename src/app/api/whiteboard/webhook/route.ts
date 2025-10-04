@@ -55,12 +55,8 @@ export async function POST(request: NextRequest) {
       receivedViaWebhook: true,
     };
 
-    // Write updated status
+    // Write updated status to task-specific file
     fs.writeFileSync(taskFilePath, JSON.stringify(statusData, null, 2));
-    
-    // Also update the legacy meshy_status.json for backward compatibility
-    const legacyPath = path.join(process.cwd(), "meshy_status.json");
-    fs.writeFileSync(legacyPath, JSON.stringify(statusData, null, 2));
 
     console.log(`[Meshy Webhook] Updated status for task ${taskId}: ${payload.status}`);
 

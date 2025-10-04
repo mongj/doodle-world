@@ -1756,10 +1756,30 @@ export default function TavernScene() {
       setUploadProgress("Sending to Meshy AI...");
       setGenerationProgress(5);
 
-      // Start progress polling
+      // Send to backend API - returns immediately with task ID
+      const response = await fetch("/api/whiteboard/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image_url: dataUri,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate model");
+      }
+
+      const data = await response.json();
+      const taskId = data.id;
+      console.log("Meshy task created:", taskId);
+
+      // Start progress polling with taskId
       const progressInterval = setInterval(async () => {
         try {
-          const statusRes = await fetch("/api/whiteboard/status");
+          const statusRes = await fetch(`/api/whiteboard/status?taskId=${taskId}`);
           if (statusRes.ok) {
             const statusData = await statusRes.json();
             const progress = statusData.progress || 0;
@@ -1774,26 +1794,6 @@ export default function TavernScene() {
         }
       }, 2000);
 
-      // Send to backend API - returns immediately with task ID
-      const response = await fetch("/api/whiteboard/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          image_url: dataUri,
-        }),
-      });
-
-      if (!response.ok) {
-        clearInterval(progressInterval);
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate model");
-      }
-
-      const data = await response.json();
-      console.log("Meshy task created:", data);
-
       // Poll for completion (webhook updates the status file)
       const maxTries = 120;
       const delayMs = 3000;
@@ -1801,7 +1801,7 @@ export default function TavernScene() {
       for (let i = 0; i < maxTries; i++) {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
 
-        const statusRes = await fetch("/api/whiteboard/status");
+        const statusRes = await fetch(`/api/whiteboard/status?taskId=${taskId}`);
         if (!statusRes.ok) continue;
 
         const statusData = await statusRes.json();
