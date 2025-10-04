@@ -6,12 +6,18 @@ import "tldraw/tldraw.css";
 
 interface WhiteboardProps {
   onClose: () => void;
+  onGenerationStart: () => void;
+  onGenerationProgress: (progress: number, message: string) => void;
+  onGenerationComplete: () => void;
 }
 
-export default function Whiteboard({ onClose }: WhiteboardProps) {
+export default function Whiteboard({ 
+  onClose, 
+  onGenerationStart, 
+  onGenerationProgress, 
+  onGenerationComplete 
+}: WhiteboardProps) {
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [isSending, setIsSending] = useState(false);
-  const [isLoadingModel, setIsLoadingModel] = useState(false);
 
   const handleEditorMount = (instance: Editor) => {
     setEditor(instance);
@@ -40,8 +46,12 @@ export default function Whiteboard({ onClose }: WhiteboardProps) {
   const handleSendImage = async () => {
     if (!editor) return;
 
+    // Close whiteboard immediately
+    onClose();
+
     try {
-      setIsSending(true);
+      onGenerationStart();
+      onGenerationProgress(0, "Converting drawing to image...");
 
       // Convert all shapes to array
       const allShapes = Array.from(editor.getCurrentPageShapeIds());
@@ -62,47 +72,72 @@ export default function Whiteboard({ onClose }: WhiteboardProps) {
         reader.readAsDataURL(imageResult.blob);
       });
 
+      onGenerationProgress(5, "Sending to Meshy AI...");
+
+      // Poll for progress
+      const progressInterval = setInterval(async () => {
+        try {
+          const statusRes = await fetch("/api/whiteboard/status");
+          if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            const progress = statusData.progress || 0;
+            if (progress > 0 && progress < 100) {
+              onGenerationProgress(
+                Math.max(5, Math.min(95, progress)),
+                `Generating model... ${progress}% complete`
+              );
+            }
+          }
+        } catch (err) {
+          console.error("Error polling status:", err);
+        }
+      }, 2000);
+
       const response = await fetch("/api/whiteboard/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image_url: imageUrl }),
       });
 
+      clearInterval(progressInterval);
+
       const data = await response.json();
-      if (!response.ok) throw new Error(data?.error || "Request failed");
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to create 3D model");
+      }
 
       console.log('Meshy result:', data);
-      const status = data?.status || 'UNKNOWN';
 
-      if (status === 'SUCCEEDED') {
-        const glbUrl: string | undefined = data?.model_urls?.glb;
-        if (!glbUrl) {
-          alert('Model URL missing in response');
+      if (data.status === 'FAILED') {
+        throw new Error(data.task_error?.message || "Model generation failed");
+      }
+
+      if (data.status === 'SUCCEEDED' && data.model_urls?.glb) {
+        onGenerationProgress(100, "Loading model into scene...");
+
+        const loader = (window as any)?.__LOAD_DYNAMIC_MODEL__;
+        if (typeof loader === 'function') {
+          await loader(data.model_urls.glb);
+          onGenerationProgress(100, "✓ Model loaded successfully!");
+          
+          setTimeout(() => {
+            onGenerationComplete();
+          }, 2000);
         } else {
-          const loader = (window as any)?.__LOAD_DYNAMIC_MODEL__;
-          if (typeof loader !== 'function') {
-            alert('Model loader unavailable');
-          } else {
-            try {
-              setIsLoadingModel(true);
-              await loader(glbUrl);
-              alert('Model added to world!');
-            } catch (loadError) {
-              console.error('Error loading model into world:', loadError);
-              alert('Error loading model into world');
-            } finally {
-              setIsLoadingModel(false);
-            }
-          }
+          throw new Error('Model loader unavailable');
         }
       } else {
-        alert(`Status: ${status}`);
+        throw new Error('No GLB model URL in response');
       }
     } catch (error) {
-      console.error("Error sending image:", error);
-      alert("Error sending image");
-    } finally {
-      setIsSending(false);
+      console.error("Error creating 3D model:", error);
+      onGenerationProgress(
+        0,
+        `Error: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+      setTimeout(() => {
+        onGenerationComplete();
+      }, 3000);
     }
   };
 
@@ -146,41 +181,35 @@ export default function Whiteboard({ onClose }: WhiteboardProps) {
         <Tldraw onMount={handleEditorMount} />
         <button
           onClick={handleSendImage}
-          disabled={isSending || isLoadingModel || !editor}
+          disabled={!editor}
           style={{
             position: "absolute",
             bottom: "16px",
             right: "16px",
             zIndex: 100000,
-            backgroundColor:
-              isSending || isLoadingModel ? '#9ca3af' : '#3b82f6',
+            backgroundColor: !editor ? '#9ca3af' : '#8b5cf6',
             color: 'white',
             padding: '12px 24px',
             borderRadius: '8px',
             border: 'none',
-            cursor:
-              isSending || isLoadingModel || !editor ? 'not-allowed' : 'pointer',
+            cursor: !editor ? 'not-allowed' : 'pointer',
             fontWeight: '600',
             fontSize: '14px',
             boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
             transition: 'background-color 0.2s',
           }}
           onMouseEnter={(e) => {
-            if (!isSending && !isLoadingModel && editor) {
-              e.currentTarget.style.backgroundColor = '#2563eb';
+            if (editor) {
+              e.currentTarget.style.backgroundColor = '#7c3aed';
             }
           }}
           onMouseLeave={(e) => {
-            if (!isSending && !isLoadingModel && editor) {
-              e.currentTarget.style.backgroundColor = '#3b82f6';
+            if (editor) {
+              e.currentTarget.style.backgroundColor = '#8b5cf6';
             }
           }}
         >
-          {isSending
-            ? 'Sending...'
-            : isLoadingModel
-            ? 'Loading Model...'
-            : 'Send to API'}
+          Create 3D Model
         </button>
       </div>
     </div>

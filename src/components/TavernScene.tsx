@@ -1824,7 +1824,30 @@ export default function TavernScene() {
 
       {/* Whiteboard */}
       {showWhiteboard && (
-        <Whiteboard onClose={() => setShowWhiteboard(false)} />
+        <Whiteboard 
+          onClose={() => {
+            setShowWhiteboard(false);
+            // Re-lock pointer after closing
+            setTimeout(() => {
+              if (controlsRef.current) {
+                controlsRef.current.lock();
+              }
+            }, 100);
+          }}
+          onGenerationStart={() => {
+            setIsGenerating(true);
+            setGenerationProgress(0);
+          }}
+          onGenerationProgress={(progress, message) => {
+            setGenerationProgress(progress);
+            setUploadProgress(message);
+          }}
+          onGenerationComplete={() => {
+            setIsGenerating(false);
+            setGenerationProgress(0);
+            setUploadProgress("");
+          }}
+        />
       )}
 
       {/* Upload Modal */}

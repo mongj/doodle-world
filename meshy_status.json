@@ -1,5 +1,5 @@
 {
-  "id": "0199af8f-46fc-71ca-a883-083299eb50a6",
+  "id": "0199b0a8-ae31-78c0-8cc7-8c700595e2aa",
   "name": "",
   "art_style": "",
   "object_prompt": "",
@@ -10,9 +10,9 @@
   "text_style_prompt": "",
   "image_style_url": "",
   "status": "IN_PROGRESS",
-  "created_at": 1759587026751,
+  "created_at": 1759605468786,
   "progress": 49,
-  "started_at": 1759587026942,
+  "started_at": 1759605468845,
   "finished_at": 0,
   "expires_at": 0,
   "task_error": null,
