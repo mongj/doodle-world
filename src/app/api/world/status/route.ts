@@ -1,3 +1,4 @@
+import { proxyMarbleCdnUrl } from "@/utils/cdn-proxy";
 import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
@@ -129,18 +130,31 @@ export async function GET(request: NextRequest) {
 
     fs.writeFileSync(jobPath, JSON.stringify(updatedJob, null, 2));
 
-    // Return status info
+    // Return status info with proxied CDN URLs
+    const output = result.generation_output
+      ? {
+          ...result.generation_output,
+          ply_url: proxyMarbleCdnUrl(result.generation_output.ply_url),
+          collider_mesh_url: proxyMarbleCdnUrl(
+            result.generation_output.collider_mesh_url
+          ),
+          image_prompt_url: proxyMarbleCdnUrl(
+            result.generation_output.image_prompt_url
+          ),
+        }
+      : null;
+
     return NextResponse.json({
       jobId: jobId,
       status: result.status,
       error: result.error,
-      output: result.generation_output,
+      output: output,
       createdAt: localJob.createdAt,
       updatedAt: updatedJob.updatedAt,
       model: localJob.model,
       prompt: localJob.prompt,
       meshConversionStatus: updatedJob.meshConversionStatus,
-      convertedMeshUrl: updatedJob.convertedMeshUrl,
+      convertedMeshUrl: proxyMarbleCdnUrl(updatedJob.convertedMeshUrl),
     });
   } catch (error) {
     console.error("Error checking job status:", error);

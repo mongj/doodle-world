@@ -36,6 +36,26 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        // Add CORP header for proxied CDN resources
+        source: "/cdn-proxy/:path*",
+        headers: [
+          {
+            key: "Cross-Origin-Resource-Policy",
+            value: "cross-origin",
+          },
+        ],
+      },
+    ];
+  },
+
+  // Proxy Marble CDN through our domain to bypass CORS
+  async rewrites() {
+    return [
+      {
+        source: "/cdn-proxy/:path*",
+        destination: "https://cdn.marble.worldlabs.ai/:path*",
+      },
     ];
   },
 };

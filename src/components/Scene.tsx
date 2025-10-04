@@ -2,6 +2,7 @@
 
 "use client";
 
+import { isMarbleMeshUrl } from "@/utils/cdn-proxy";
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
 import dynamic from "next/dynamic";
@@ -167,8 +168,8 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
   const [generationProgress, setGenerationProgress] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState("Loading scene...");
-  // Determine mesh rotation based on URL source
-  const isMarbleMesh = meshUrl.includes("cdn.marble.worldlabs.ai");
+  // Determine mesh rotation based on URL source (Marble meshes vs our converted meshes)
+  const isMarbleMesh = isMarbleMeshUrl(meshUrl);
   const meshRotation = isMarbleMesh
     ? [0, 0, 0]
     : [Math.PI / 2, Math.PI, Math.PI];
@@ -323,6 +324,40 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
 
     let mounted = true;
     const container = containerRef.current;
+
+    // Cache mesh files using Cache API for persistence across sessions
+    async function loadMeshWithCache(url: string): Promise<string> {
+      try {
+        const cacheName = "doodle-world-meshes-v1";
+        const cache = await caches.open(cacheName);
+
+        // Check if we have this mesh cached
+        const cachedResponse = await cache.match(url);
+
+        if (cachedResponse) {
+          console.log("✓ Loading mesh from cache:", url);
+          // Return the original URL - THREE.js will use browser cache
+          return url;
+        }
+
+        console.log("→ Downloading mesh (will be cached):", url);
+        // Fetch and cache the mesh
+        const response = await fetch(url);
+        if (response.ok) {
+          // Clone the response before caching (can only read once)
+          await cache.put(url, response.clone());
+          console.log("✓ Mesh cached successfully");
+        }
+
+        return url;
+      } catch (error) {
+        console.warn(
+          "Cache API not available or error, loading directly:",
+          error
+        );
+        return url;
+      }
+    }
 
     async function initScene() {
       try {
@@ -568,9 +603,16 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
         THREE.Material | THREE.Material[]
       >();
 
+      // Enable THREE.js cache for loaded resources
+      THREE.Cache.enabled = true;
+
       const gltfLoader = new GLTFLoader();
       setLoadingMessage("Loading collision mesh...");
-      gltfLoader.load(meshUrl, (gltf) => {
+
+      // Try to load from cache first, then fallback to network
+      const cachedMeshUrl = await loadMeshWithCache(meshUrl);
+
+      gltfLoader.load(cachedMeshUrl, (gltf) => {
         environment = gltf.scene;
         environment.scale.set(-1, -1, 1);
         environment.rotation.set(
@@ -785,6 +827,35 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
       }
 
       (window as any).__LOAD_DYNAMIC_MODEL__ = loadDynamicModel;
+
+      // Expose cache management functions for debugging
+      (window as any).__CLEAR_MESH_CACHE__ = async () => {
+        try {
+          const cacheName = "doodle-world-meshes-v1";
+          const deleted = await caches.delete(cacheName);
+          console.log(deleted ? "✓ Mesh cache cleared" : "⚠ No cache to clear");
+          return deleted;
+        } catch (error) {
+          console.error("Error clearing cache:", error);
+          return false;
+        }
+      };
+
+      (window as any).__LIST_CACHED_MESHES__ = async () => {
+        try {
+          const cacheName = "doodle-world-meshes-v1";
+          const cache = await caches.open(cacheName);
+          const requests = await cache.keys();
+          console.log(
+            `Cached meshes (${requests.length}):`,
+            requests.map((r) => r.url)
+          );
+          return requests.map((r) => r.url);
+        } catch (error) {
+          console.error("Error listing cache:", error);
+          return [];
+        }
+      };
 
       // Input handling
       const keyState: Record<string, boolean> = {};

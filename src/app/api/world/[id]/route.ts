@@ -1,3 +1,4 @@
+import { proxyMarbleCdnUrl } from "@/utils/cdn-proxy";
 import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
@@ -16,14 +17,21 @@ export async function GET(
       const presets = JSON.parse(presetsContent);
       const presetWorld = presets.find((w: any) => w.id === worldId);
       if (presetWorld) {
-        return NextResponse.json({
-          id: presetWorld.id,
-          name: presetWorld.name,
-          thumbnailUrl: presetWorld.thumbnailUrl,
-          splatUrl: presetWorld.splatUrl,
-          meshUrl: presetWorld.meshUrl,
-          isPreset: true,
-        });
+        return NextResponse.json(
+          {
+            id: presetWorld.id,
+            name: presetWorld.name,
+            thumbnailUrl: proxyMarbleCdnUrl(presetWorld.thumbnailUrl),
+            splatUrl: proxyMarbleCdnUrl(presetWorld.splatUrl),
+            meshUrl: proxyMarbleCdnUrl(presetWorld.meshUrl),
+            isPreset: true,
+          },
+          {
+            headers: {
+              "Cache-Control": "public, max-age=31536000, immutable",
+            },
+          }
+        );
       }
     }
 
@@ -36,17 +44,28 @@ export async function GET(
       const job = JSON.parse(jobContent);
 
       if (job.status === "SUCCEEDED" && job.output) {
-        return NextResponse.json({
-          id: worldId,
-          name: job.prompt || "Generated World",
-          thumbnailUrl: job.output.image_prompt_url || null,
-          splatUrl: job.output.ply_url,
-          meshUrl:
-            job.convertedMeshUrl || job.output.converted_mesh_url || null,
-          isPreset: false,
-          status: job.status,
-          createdAt: job.createdAt,
-        });
+        return NextResponse.json(
+          {
+            id: worldId,
+            name: job.prompt || "Generated World",
+            thumbnailUrl:
+              proxyMarbleCdnUrl(job.output.image_prompt_url) || null,
+            splatUrl: proxyMarbleCdnUrl(job.output.ply_url),
+            meshUrl:
+              proxyMarbleCdnUrl(
+                job.convertedMeshUrl || job.output.converted_mesh_url
+              ) || null,
+            isPreset: false,
+            status: job.status,
+            createdAt: job.createdAt,
+          },
+          {
+            headers: {
+              // Cache for 1 hour since generated content is stable
+              "Cache-Control": "public, max-age=3600, s-maxage=3600",
+            },
+          }
+        );
       } else {
         return NextResponse.json(
           {
