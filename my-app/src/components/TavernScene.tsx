@@ -30,7 +30,7 @@ const CONFIG = {
   VELOCITY_PITCH_RANGE: { min: 0.9, max: 1.1 },
   VOLUME_DISTANCE_MAX: 10,
   ENVIRONMENT: {
-    MESH: 'hobbit_stitched.glb',
+    MESH: 'test.glb',
     SPLATS: 'test.spz',
     SPLAT_SCALE: 3,
   },
@@ -483,6 +483,9 @@ export default function TavernScene() {
       gltfLoader.load(CONFIG.ENVIRONMENT.MESH, (gltf) => {
         environment = gltf.scene;
         environment.scale.set(-1, -1, 1);
+        environment.rotation.x = 2 * Math.PI;
+        environment.rotation.y = Math.PI / 2;
+        environment.updateMatrixWorld(true);
         scene.add(environment);
 
         environment.traverse((child) => {
