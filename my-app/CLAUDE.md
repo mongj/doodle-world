@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Always use context7 to retrieve documentation before making code edits
+
 ## Project Overview
 
 Next.js 15 application featuring an interactive 3D tavern scene that integrates **Gaussian Splats** (via Spark), **Rapier Physics**, and **Three.js** to create a first-person physics-based environment with animated characters and spatial audio.
