@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, memo } from "react";
 
 export interface InventoryItem {
   id: string;
@@ -15,7 +15,7 @@ interface InventoryProps {
   onSelectItem: (item: InventoryItem) => void;
 }
 
-export default function Inventory({ items, onClose, onSelectItem }: InventoryProps) {
+function Inventory({ items, onClose, onSelectItem }: InventoryProps) {
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
 
   const GRID_COLS = 9;
@@ -131,3 +131,5 @@ export default function Inventory({ items, onClose, onSelectItem }: InventoryPro
     </div>
   );
 }
+
+export default memo(Inventory);
