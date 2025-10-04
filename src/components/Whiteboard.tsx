@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { Tldraw, Editor } from 'tldraw';
-import 'tldraw/tldraw.css';
+import { useEffect, useState } from "react";
+import { Editor, Tldraw } from "tldraw";
+import "tldraw/tldraw.css";
 
 interface WhiteboardProps {
   onClose: () => void;
@@ -20,12 +20,12 @@ export default function Whiteboard({ onClose }: WhiteboardProps) {
     }
 
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.code === 'Escape') {
+      if (e.code === "Escape") {
         onClose();
       }
     };
-    window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
   }, [onClose]);
 
   const handleSendImage = async () => {
@@ -39,7 +39,7 @@ export default function Whiteboard({ onClose }: WhiteboardProps) {
 
       // Export the canvas as an image blob
       const imageResult = await editor.toImage(allShapes, {
-        format: 'png',
+        format: "png",
         quality: 0.9,
         background: true,
         padding: 10,
@@ -53,14 +53,14 @@ export default function Whiteboard({ onClose }: WhiteboardProps) {
         reader.readAsDataURL(imageResult.blob);
       });
 
-      const response = await fetch('/api/whiteboard/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/whiteboard/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image_url: imageUrl }),
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data?.error || 'Request failed');
+      if (!response.ok) throw new Error(data?.error || "Request failed");
 
       console.log('Meshy result:', data);
       const status = data?.status || 'UNKNOWN';
@@ -90,8 +90,8 @@ export default function Whiteboard({ onClose }: WhiteboardProps) {
         alert(`Status: ${status}`);
       }
     } catch (error) {
-      console.error('Error sending image:', error);
-      alert('Error sending image');
+      console.error("Error sending image:", error);
+      alert("Error sending image");
     } finally {
       setIsSending(false);
     }
@@ -100,20 +100,22 @@ export default function Whiteboard({ onClose }: WhiteboardProps) {
   return (
     <div
       style={{
-        position: 'fixed',
+        position: "fixed",
         inset: 0,
         zIndex: 50,
-        backgroundColor: 'rgba(0, 0, 0, 0.3)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '40px'
+        backgroundColor: "rgba(0, 0, 0, 0.3)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "40px",
       }}
-      onClick={(e) => {
+      onClick={() => {
         onClose();
         // Re-lock pointer after closing
         setTimeout(() => {
-          const controls = (window as any).__TAVERN_CONTROLS__;
+          const controls = (
+            window as Window & { __TAVERN_CONTROLS__?: { lock: () => void } }
+          ).__TAVERN_CONTROLS__;
           if (controls) {
             controls.lock();
           }
@@ -122,13 +124,13 @@ export default function Whiteboard({ onClose }: WhiteboardProps) {
     >
       <div
         style={{
-          position: 'relative',
-          width: '90%',
-          height: '85%',
-          backgroundColor: 'white',
-          borderRadius: '12px',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-          overflow: 'hidden'
+          position: "relative",
+          width: "90%",
+          height: "85%",
+          backgroundColor: "white",
+          borderRadius: "12px",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+          overflow: "hidden",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -137,9 +139,9 @@ export default function Whiteboard({ onClose }: WhiteboardProps) {
           onClick={handleSendImage}
           disabled={isSending || isLoadingModel || !editor}
           style={{
-            position: 'absolute',
-            bottom: '16px',
-            right: '16px',
+            position: "absolute",
+            bottom: "16px",
+            right: "16px",
             zIndex: 100000,
             backgroundColor:
               isSending || isLoadingModel ? '#9ca3af' : '#3b82f6',

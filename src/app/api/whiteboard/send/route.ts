@@ -1,11 +1,11 @@
-import { create } from 'domain';
-import { NextRequest, NextResponse } from 'next/server';
-const fs = require('fs');
-const path = require('path');
+import fs from "fs";
+import { NextRequest, NextResponse } from "next/server";
+import path from "path";
 
 const MESHY_API_KEY = process.env.MESHY_API_KEY;
 const CREATE_URL = process.env.MESHY_IMAGE_TO_3D_URL;
-const STATUS_TEMPLATE = process.env.MESHY_JOB_STATUS_URL_TEMPLATE || `${CREATE_URL}/{id}`;
+const STATUS_TEMPLATE =
+  process.env.MESHY_JOB_STATUS_URL_TEMPLATE || `${CREATE_URL}/{id}`;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -14,36 +14,42 @@ export async function POST(request: NextRequest) {
     const { image_url } = await request.json();
 
     if (!image_url) {
-      return NextResponse.json({ error: 'Missing image_url' }, { status: 400 });
+      return NextResponse.json({ error: "Missing image_url" }, { status: 400 });
     }
 
     if (!MESHY_API_KEY || !CREATE_URL) {
-      return NextResponse.json({ error: 'Server not configured' }, { status: 500 });
+      return NextResponse.json(
+        { error: "Server not configured" },
+        { status: 500 }
+      );
     }
 
     // Create Meshy task
     const createRes = await fetch(CREATE_URL, {
-      method: 'POST',
+      method: "POST",
       headers: {
         Authorization: `Bearer ${MESHY_API_KEY}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ image_url }),
     });
 
     const createJson = await createRes.json();
 
-    console.log('Meshy create response:', createJson);
+    console.log("Meshy create response:", createJson);
     if (!createRes.ok) {
       return NextResponse.json(
-        { error: createJson?.error || 'Meshy create failed' },
+        { error: createJson?.error || "Meshy create failed" },
         { status: createRes.status || 500 }
       );
     }
 
     const id: string | undefined = createJson?.result;
     if (!id) {
-      return NextResponse.json({ error: createJson?.error || JSON.stringify(createJson) }, { status: 502 });
+      return NextResponse.json(
+        { error: createJson?.error || JSON.stringify(createJson) },
+        { status: 502 }
+      );
     }
 
     // Simple polling for status
@@ -58,27 +64,34 @@ export async function POST(request: NextRequest) {
       const statusJson = await statusRes.json();
 
       // Save statusJson to a local JSON file
-      const outputPath = path.join(process.cwd(), 'meshy_status.json');
+      const outputPath = path.join(process.cwd(), "meshy_status.json");
       fs.writeFileSync(outputPath, JSON.stringify(statusJson, null, 2));
 
       if (!statusRes.ok) {
         return NextResponse.json(
-          { error: statusJson?.error || 'Meshy status failed' },
+          { error: statusJson?.error || "Meshy status failed" },
           { status: statusRes.status || 500 }
         );
       }
 
       const status = statusJson?.status;
-      if (status === 'SUCCEEDED' || status === 'FAILED' || status === 'CANCELED') {
+      if (
+        status === "SUCCEEDED" ||
+        status === "FAILED" ||
+        status === "CANCELED"
+      ) {
         return NextResponse.json(statusJson);
       }
 
       await sleep(delayMs);
     }
 
-    return NextResponse.json({ id, status: 'TIMEOUT' }, { status: 202 });
+    return NextResponse.json({ id, status: "TIMEOUT" }, { status: 202 });
   } catch (error) {
-    console.error('Error processing image:', error);
-    return NextResponse.json({ error: 'Failed to process image' }, { status: 500 });
+    console.error("Error processing image:", error);
+    return NextResponse.json(
+      { error: "Failed to process image" },
+      { status: 500 }
+    );
   }
 }
