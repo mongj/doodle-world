@@ -30,8 +30,8 @@ const CONFIG = {
   VELOCITY_PITCH_RANGE: { min: 0.9, max: 1.1 },
   VOLUME_DISTANCE_MAX: 10,
   ENVIRONMENT: {
-    MESH: "test.glb",
-    SPLATS: "test.spz",
+    MESH: "test1.glb",
+    SPLATS: "test1.spz",
     SPLAT_SCALE: 3,
     MESH_ROTATION: [Math.PI / 2, Math.PI, Math.PI],
   },
@@ -408,7 +408,7 @@ export default function TavernScene() {
       // Player
       const playerBody = world.createRigidBody(
         RAPIER.RigidBodyDesc.dynamic()
-          .setTranslation(0, 1.2, 0)
+          .setTranslation(0,1, 0)
           .lockRotations(true)
           .setLinearDamping(4.0)
           .setCcdEnabled(true)
@@ -919,11 +919,12 @@ export default function TavernScene() {
       // Animation loop
       let previousTime = performance.now();
       let physicsAccumulator = 0;
+      let animationFrameId: number;
 
       function animate(currentTime: number) {
         if (!mounted) return;
 
-        requestAnimationFrame(animate);
+        animationFrameId = requestAnimationFrame(animate);
         const frameTime = Math.min((currentTime - previousTime) / 1000, 0.1);
         previousTime = currentTime;
 
@@ -955,99 +956,125 @@ export default function TavernScene() {
           MAX_SUBSTEPS
         );
         for (let i = 0; i < steps; i++) {
-          world.step();
+          if (!mounted) break;
+          try {
+            world.step();
+          } catch {
+            // World disposed during cleanup
+            return;
+          }
 
           for (const projectile of projectiles) {
-            const pos = projectile.body.translation();
-            const rot = projectile.body.rotation();
-            projectile.mesh.position.set(pos.x, pos.y, pos.z);
-            projectile.mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w);
+            if (!mounted) break;
+            try {
+              const pos = projectile.body.translation();
+              const rot = projectile.body.rotation();
+              projectile.mesh.position.set(pos.x, pos.y, pos.z);
+              projectile.mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w);
 
-            const currentVelocity = new THREE.Vector3(
-              projectile.body.linvel().x,
-              projectile.body.linvel().y,
-              projectile.body.linvel().z
-            );
+              const currentVelocity = new THREE.Vector3(
+                projectile.body.linvel().x,
+                projectile.body.linvel().y,
+                projectile.body.linvel().z
+              );
 
-            const velocityChange = currentVelocity
-              .clone()
-              .sub(projectile.lastVelocity);
-            if (velocityChange.length() > CONFIG.BOUNCE_DETECTION_THRESHOLD) {
-              const position = new THREE.Vector3(pos.x, pos.y, pos.z);
-              playBounceSound(position, currentVelocity);
+              const velocityChange = currentVelocity
+                .clone()
+                .sub(projectile.lastVelocity);
+              if (velocityChange.length() > CONFIG.BOUNCE_DETECTION_THRESHOLD) {
+                const position = new THREE.Vector3(pos.x, pos.y, pos.z);
+                playBounceSound(position, currentVelocity);
 
-              for (const character of ["orc", "bartender"]) {
-                if (boneColliders[character]) {
-                  const hit = boneColliders[character].some(({ bone }) => {
-                    const bonePos = new THREE.Vector3();
-                    bone.getWorldPosition(bonePos);
-                    return (
-                      position.distanceTo(bonePos) <
-                      CONFIG.CHARACTER_HIT_DISTANCE
-                    );
-                  });
-                  if (hit) playVoiceLine(character);
+                for (const character of ["orc", "bartender"]) {
+                  if (boneColliders[character]) {
+                    const hit = boneColliders[character].some(({ bone }) => {
+                      const bonePos = new THREE.Vector3();
+                      bone.getWorldPosition(bonePos);
+                      return (
+                        position.distanceTo(bonePos) <
+                        CONFIG.CHARACTER_HIT_DISTANCE
+                      );
+                    });
+                    if (hit) playVoiceLine(character);
+                  }
                 }
               }
-            }
 
-            projectile.lastVelocity.copy(currentVelocity);
+              projectile.lastVelocity.copy(currentVelocity);
+            } catch {
+              continue;
+            }
           }
 
           for (const block of jengaBlocks) {
-            const pos = block.body.translation();
-            const rot = block.body.rotation();
-            block.mesh.position.set(pos.x, pos.y, pos.z);
-            block.mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w);
+            if (!mounted) break;
+            try {
+              const pos = block.body.translation();
+              const rot = block.body.rotation();
+              block.mesh.position.set(pos.x, pos.y, pos.z);
+              block.mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w);
+            } catch {
+              continue;
+            }
           }
 
-          if (grabbed.body) {
-            const forward = new THREE.Vector3();
-            camera.getWorldDirection(forward);
-            forward.normalize();
-            const holdPos = camera.position
-              .clone()
-              .addScaledVector(forward, CONFIG.GRAB.HOLD_DISTANCE);
-            grabbed.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-            grabbed.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-            grabbed.body.setTranslation(
-              { x: holdPos.x, y: holdPos.y, z: holdPos.z },
-              true
-            );
+          if (grabbed.body && mounted) {
+            try {
+              const forward = new THREE.Vector3();
+              camera.getWorldDirection(forward);
+              forward.normalize();
+              const holdPos = camera.position
+                .clone()
+                .addScaledVector(forward, CONFIG.GRAB.HOLD_DISTANCE);
+              grabbed.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+              grabbed.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+              grabbed.body.setTranslation(
+                { x: holdPos.x, y: holdPos.y, z: holdPos.z },
+                true
+              );
 
-            const yawForward = new THREE.Vector3(forward.x, 0, forward.z);
-            if (yawForward.lengthSq() < 1e-6) yawForward.set(0, 0, 1);
-            yawForward.normalize();
-            const up = new THREE.Vector3(0, 1, 0);
-            const right = new THREE.Vector3()
-              .crossVectors(up, yawForward)
-              .normalize();
-            const trueUp = new THREE.Vector3()
-              .crossVectors(yawForward, right)
-              .normalize();
-            const basis = new THREE.Matrix4().makeBasis(
-              right,
-              trueUp,
-              yawForward
-            );
-            const q = new THREE.Quaternion().setFromRotationMatrix(basis);
-            grabbed.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+              const yawForward = new THREE.Vector3(forward.x, 0, forward.z);
+              if (yawForward.lengthSq() < 1e-6) yawForward.set(0, 0, 1);
+              yawForward.normalize();
+              const up = new THREE.Vector3(0, 1, 0);
+              const right = new THREE.Vector3()
+                .crossVectors(up, yawForward)
+                .normalize();
+              const trueUp = new THREE.Vector3()
+                .crossVectors(yawForward, right)
+                .normalize();
+              const basis = new THREE.Matrix4().makeBasis(
+                right,
+                trueUp,
+                yawForward
+              );
+              const q = new THREE.Quaternion().setFromRotationMatrix(basis);
+              grabbed.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+            } catch {
+              // Physics body freed during cleanup
+            }
           }
 
           physicsAccumulator -= FIXED_TIME_STEP;
         }
 
-        if (playerBody) {
-          const p = playerBody.translation();
-          const feetY = p.y - (PLAYER_HALF_HEIGHT + PLAYER_RADIUS);
-          camera.position.set(p.x, feetY + PLAYER_EYE_HEIGHT, p.z);
+        if (playerBody && mounted) {
+          try {
+            const p = playerBody.translation();
+            const feetY = p.y - (PLAYER_HALF_HEIGHT + PLAYER_RADIUS);
+            camera.position.set(p.x, feetY + PLAYER_EYE_HEIGHT, p.z);
 
-          setPlayerPositionState((prev) => {
-            if (prev.x === p.x && prev.y === p.y && prev.z === p.z) {
-              return prev;
-            }
-            return { x: p.x, y: p.y, z: p.z };
-          });
+            setPlayerPositionState((prev) => {
+              if (prev.x === p.x && prev.y === p.y && prev.z === p.z) {
+                return prev;
+              }
+              return { x: p.x, y: p.y, z: p.z };
+            });
+          } catch (error) {
+            // Physics body may have been freed during cleanup
+            console.warn("Physics body access error (likely during cleanup):", error);
+            return;
+          }
         }
 
         sparkRenderer?.update({ scene });
@@ -1058,10 +1085,16 @@ export default function TavernScene() {
         }
 
         for (const colliders of Object.values(boneColliders)) {
+          if (!mounted) break;
           for (const { bone, body } of colliders) {
-            const pos = new THREE.Vector3();
-            bone.getWorldPosition(pos);
-            body.setTranslation({ x: pos.x, y: pos.y, z: pos.z }, true);
+            if (!mounted) break;
+            try {
+              const pos = new THREE.Vector3();
+              bone.getWorldPosition(pos);
+              body.setTranslation({ x: pos.x, y: pos.y, z: pos.z }, true);
+            } catch {
+              continue;
+            }
           }
         }
 
@@ -1116,9 +1149,22 @@ export default function TavernScene() {
 
       cleanupRef.current = () => {
         mounted = false;
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+        }
         window.removeEventListener("keydown", handleKeyDown);
         window.removeEventListener("keyup", handleKeyUp);
         window.removeEventListener("resize", handleResize);
+        
+        // Dispose physics world
+        try {
+          if (world && typeof world.free === 'function') {
+            world.free();
+          }
+        } catch (error) {
+          console.warn("Error disposing physics world:", error);
+        }
+        
         renderer.dispose();
         if (container.contains(renderer.domElement)) {
           container.removeChild(renderer.domElement);
