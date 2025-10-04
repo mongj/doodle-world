@@ -13,6 +13,9 @@ import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 const Whiteboard = dynamic(() => import("./Whiteboard"), { ssr: false });
+const Inventory = dynamic(() => import("./Inventory"), { ssr: false });
+
+import type { InventoryItem } from "./Inventory";
 
 const GLOBAL_SCALE = 0.7;
 
@@ -227,6 +230,7 @@ export default function TavernScene() {
   const [showWhiteboard, setShowWhiteboard] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showTextModal, setShowTextModal] = useState(false);
+  const [showInventory, setShowInventory] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState<number>(0);
@@ -247,6 +251,16 @@ export default function TavernScene() {
     )} rad)`;
 
   const formatPosition = (value: number) => value.toFixed(3);
+
+  // Inventory items - easily extensible for future generated models
+  const inventoryItems: InventoryItem[] = [
+    {
+      id: "orc",
+      name: "Orc",
+      modelUrl: CONFIG.CHARACTERS.ORC.MODEL,
+    },
+    // Add more items here as needed
+  ];
 
   useEffect(() => {
     setShowUI(true);
@@ -274,6 +288,14 @@ export default function TavernScene() {
           return;
         } else if (showUploadModal) {
           setShowUploadModal(false);
+          setTimeout(() => {
+            if (controlsRef.current) {
+              controlsRef.current.lock();
+            }
+          }, 100);
+          return;
+        } else if (showInventory) {
+          setShowInventory(false);
           setTimeout(() => {
             if (controlsRef.current) {
               controlsRef.current.lock();
@@ -337,13 +359,29 @@ export default function TavernScene() {
             }, 100);
           }
         }
+      } else if (e.code === "KeyI") {
+        const newState = !showInventory;
+        setShowInventory(newState);
+
+        // Unlock pointer when opening inventory, lock when closing
+        if (controlsRef.current) {
+          if (newState) {
+            controlsRef.current.unlock();
+          } else {
+            setTimeout(() => {
+              if (controlsRef.current) {
+                controlsRef.current.lock();
+              }
+            }, 100);
+          }
+        }
       }
     };
 
     window.addEventListener("keydown", handleWhiteboardShortcut);
     return () =>
       window.removeEventListener("keydown", handleWhiteboardShortcut);
-  }, [showWhiteboard, showUploadModal, showTextModal]);
+  }, [showWhiteboard, showUploadModal, showTextModal, showInventory]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -1472,6 +1510,20 @@ export default function TavernScene() {
     }
   };
 
+  const handleSelectItem = async (item: InventoryItem) => {
+    try {
+      // Load the model dynamically using the global function
+      if ((window as any).__LOAD_DYNAMIC_MODEL__) {
+        await (window as any).__LOAD_DYNAMIC_MODEL__(item.modelUrl);
+        console.log(`Spawned ${item.name} from inventory`);
+      } else {
+        console.error("Dynamic model loading not available yet");
+      }
+    } catch (error) {
+      console.error(`Error spawning ${item.name}:`, error);
+    }
+  };
+
   const handleTextToModel = async (
     prompt: string,
     artStyle: string = "realistic"
@@ -1805,6 +1857,9 @@ export default function TavernScene() {
                   <p>
                     <span className="font-semibold">T:</span> Text to Model
                   </p>
+                  <p>
+                    <span className="font-semibold">I:</span> Inventory
+                  </p>
                 </div>
               </div>
             </div>
@@ -1814,7 +1869,7 @@ export default function TavernScene() {
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
             <p className="text-white text-sm font-medium drop-shadow-lg">
               WASD: Move • R/F: Up/Down • Space: Jump • Click: Shoot/Grab • Arrows: Rotate • .: Launch • M:
-              Debug • L: Whiteboard • U: Upload • T: Text
+              Debug • L: Whiteboard • U: Upload • T: Text • I: Inventory
             </p>
           </div>
 
@@ -2054,6 +2109,22 @@ export default function TavernScene() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Inventory */}
+      {showInventory && (
+        <Inventory
+          items={inventoryItems}
+          onClose={() => {
+            setShowInventory(false);
+            setTimeout(() => {
+              if (controlsRef.current) {
+                controlsRef.current.lock();
+              }
+            }, 100);
+          }}
+          onSelectItem={handleSelectItem}
+        />
       )}
     </>
   );
