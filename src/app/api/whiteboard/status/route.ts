@@ -1,19 +1,30 @@
 import fs from "fs";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import path from "path";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const statusPath = path.join(process.cwd(), "meshy_status.json");
+    const { searchParams } = new URL(request.url);
+    const taskId = searchParams.get("taskId");
+
+    if (!taskId) {
+      return NextResponse.json(
+        { error: "Missing taskId parameter" },
+        { status: 400 }
+      );
+    }
+
+    // Read from task-specific file
+    const taskFilePath = path.join(process.cwd(), "meshy_tasks", `${taskId}.json`);
     
-    if (!fs.existsSync(statusPath)) {
+    if (!fs.existsSync(taskFilePath)) {
       return NextResponse.json({ 
         progress: 0, 
         status: "NOT_STARTED" 
       });
     }
 
-    const statusContent = fs.readFileSync(statusPath, "utf-8");
+    const statusContent = fs.readFileSync(taskFilePath, "utf-8");
     const statusData = JSON.parse(statusContent);
 
     return NextResponse.json({

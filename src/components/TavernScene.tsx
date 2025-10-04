@@ -1623,9 +1623,9 @@ export default function TavernScene() {
           previewComplete = true;
           break;
         } else if (statusData.status === "FAILED") {
-          throw new Error(
-            statusData.task_error?.message || "Preview generation failed"
-          );
+          const errorMsg = statusData.task_error?.message || "Preview generation failed";
+          alert(`❌ Model Generation Failed\n\n${errorMsg}`);
+          throw new Error(errorMsg);
         }
       }
 
@@ -1709,9 +1709,9 @@ export default function TavernScene() {
             throw new Error("No GLB model URL in response");
           }
         } else if (statusData.status === "FAILED") {
-          throw new Error(
-            statusData.task_error?.message || "Texture generation failed"
-          );
+          const errorMsg = statusData.task_error?.message || "Texture generation failed";
+          alert(`❌ Texture Generation Failed\n\n${errorMsg}`);
+          throw new Error(errorMsg);
         }
       }
 
@@ -1756,10 +1756,30 @@ export default function TavernScene() {
       setUploadProgress("Sending to Meshy AI...");
       setGenerationProgress(5);
 
-      // Start progress polling
+      // Send to backend API - returns immediately with task ID
+      const response = await fetch("/api/whiteboard/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image_url: dataUri,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate model");
+      }
+
+      const data = await response.json();
+      const taskId = data.id;
+      console.log("Meshy task created:", taskId);
+
+      // Start progress polling with taskId
       const progressInterval = setInterval(async () => {
         try {
-          const statusRes = await fetch("/api/whiteboard/status");
+          const statusRes = await fetch(`/api/whiteboard/status?taskId=${taskId}`);
           if (statusRes.ok) {
             const statusData = await statusRes.json();
             const progress = statusData.progress || 0;
@@ -1774,56 +1794,56 @@ export default function TavernScene() {
         }
       }, 2000);
 
-      // Send to backend API - this polls internally
-      const response = await fetch("/api/whiteboard/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          image_url: dataUri,
-        }),
-      });
+      // Poll for completion (webhook updates the status file)
+      const maxTries = 120;
+      const delayMs = 3000;
 
-      // Stop polling
-      clearInterval(progressInterval);
+      for (let i = 0; i < maxTries; i++) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate model");
-      }
+        const statusRes = await fetch(`/api/whiteboard/status?taskId=${taskId}`);
+        if (!statusRes.ok) continue;
 
-      const data = await response.json();
+        const statusData = await statusRes.json();
 
-      if (data.status === "FAILED") {
-        throw new Error(data.task_error?.message || "Model generation failed");
-      }
-
-      if (data.status === "SUCCEEDED" && data.model_urls?.glb) {
-        setGenerationProgress(100);
-        setUploadProgress("Loading model into scene...");
-
-        // Load the model using the existing function
-        if ((window as any).__LOAD_DYNAMIC_MODEL__) {
-          await (window as any).__LOAD_DYNAMIC_MODEL__(data.model_urls.glb);
+        if (statusData.status === "FAILED") {
+          clearInterval(progressInterval);
+          const errorMsg = statusData.task_error?.message || "Model generation failed";
+          alert(`❌ Model Generation Failed\n\n${errorMsg}`);
+          throw new Error(errorMsg);
         }
 
-        setUploadProgress("✓ Model loaded successfully!");
-        setTimeout(() => {
-          setShowUploadModal(false);
-          setUploadProgress("");
-          setIsGenerating(false);
-          setGenerationProgress(0);
-          // Re-lock pointer
+        if (statusData.status === "SUCCEEDED" && statusData.model_urls?.glb) {
+          clearInterval(progressInterval);
+          setGenerationProgress(100);
+          setUploadProgress("Loading model into scene...");
+
+          // Load the model using the existing function
+          if ((window as any).__LOAD_DYNAMIC_MODEL__) {
+            await (window as any).__LOAD_DYNAMIC_MODEL__(
+              statusData.model_urls.glb
+            );
+          }
+
+          setUploadProgress("✓ Model loaded successfully!");
           setTimeout(() => {
-            if (controlsRef.current) {
-              controlsRef.current.lock();
-            }
-          }, 100);
-        }, 2000);
-      } else {
-        throw new Error("No GLB model URL in response");
+            setShowUploadModal(false);
+            setUploadProgress("");
+            setIsGenerating(false);
+            setGenerationProgress(0);
+            // Re-lock pointer
+            setTimeout(() => {
+              if (controlsRef.current) {
+                controlsRef.current.lock();
+              }
+            }, 100);
+          }, 2000);
+          return;
+        }
       }
+
+      clearInterval(progressInterval);
+      throw new Error("Model generation timeout");
     } catch (error) {
       console.error("Error generating model:", error);
       setUploadProgress(

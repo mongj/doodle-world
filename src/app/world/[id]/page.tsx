@@ -13,6 +13,7 @@ interface WorldData {
   thumbnailUrl?: string;
   splatUrl: string;
   meshUrl: string;
+  backgroundMusic?: string;
   isPreset: boolean;
 }
 
@@ -84,5 +85,11 @@ export default function WorldPage() {
     );
   }
 
-  return <Scene meshUrl={world.meshUrl} splatUrl={world.splatUrl} />;
+  return (
+    <Scene
+      meshUrl={world.meshUrl}
+      splatUrl={world.splatUrl}
+      backgroundMusic={world.backgroundMusic}
+    />
+  );
 }
