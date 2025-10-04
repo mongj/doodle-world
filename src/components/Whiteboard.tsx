@@ -105,11 +105,11 @@ export default function Whiteboard({
         } catch (err) {
           console.error("Error polling status:", err);
         }
-      }, 2000);
+      }, 5000);
 
       // Now poll for completion (webhook updates the status file)
-      const maxTries = 120;
-      const delayMs = 3000;
+      const maxTries = 100;
+      const delayMs = 5000;
       
       for (let i = 0; i < maxTries; i++) {
         await new Promise(resolve => setTimeout(resolve, delayMs));
