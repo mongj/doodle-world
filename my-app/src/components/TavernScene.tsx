@@ -33,6 +33,7 @@ const CONFIG = {
     MESH: 'test.glb',
     SPLATS: 'test.spz',
     SPLAT_SCALE: 3,
+    MESH_ROTATION: [Math.PI / 2, Math.PI , Math.PI],
   },
   CHARACTERS: {
     ORC: {
@@ -196,6 +197,14 @@ export default function TavernScene() {
   const gameStartedRef = useRef(false);
   const [showUI, setShowUI] = useState(false);
   const [showWhiteboard, setShowWhiteboard] = useState(false);
+  const [meshRotationState, setMeshRotationState] = useState({
+    x: CONFIG.ENVIRONMENT.MESH_ROTATION[0],
+    y: CONFIG.ENVIRONMENT.MESH_ROTATION[1],
+    z: CONFIG.ENVIRONMENT.MESH_ROTATION[2],
+  });
+
+  const formatRotation = (radians: number) =>
+    `${THREE.MathUtils.radToDeg(radians).toFixed(1)}° (${radians.toFixed(2)} rad)`;
 
   useEffect(() => {
     setShowUI(true);
@@ -483,8 +492,16 @@ export default function TavernScene() {
       gltfLoader.load(CONFIG.ENVIRONMENT.MESH, (gltf) => {
         environment = gltf.scene;
         environment.scale.set(-1, -1, 1);
-        environment.rotation.x = 2 * Math.PI;
-        environment.rotation.y = Math.PI / 2;
+        environment.rotation.set(
+          CONFIG.ENVIRONMENT.MESH_ROTATION[0],
+          CONFIG.ENVIRONMENT.MESH_ROTATION[1],
+          CONFIG.ENVIRONMENT.MESH_ROTATION[2]
+        );
+        setMeshRotationState({
+          x: environment.rotation.x,
+          y: environment.rotation.y,
+          z: environment.rotation.z,
+        });
         environment.updateMatrixWorld(true);
         scene.add(environment);
 
@@ -788,6 +805,22 @@ export default function TavernScene() {
         const frameTime = Math.min((currentTime - previousTime) / 1000, 0.1);
         previousTime = currentTime;
 
+        setMeshRotationState((prev) => {
+          if (!environment) return prev;
+          if (
+            prev.x === environment.rotation.x &&
+            prev.y === environment.rotation.y &&
+            prev.z === environment.rotation.z
+          ) {
+            return prev;
+          }
+          return {
+            x: environment.rotation.x,
+            y: environment.rotation.y,
+            z: environment.rotation.z,
+          };
+        });
+
         updateMovement();
 
         for (const key of Object.keys(voiceCooldowns)) {
@@ -998,6 +1031,14 @@ export default function TavernScene() {
             ref={reticleRef}
             className="fixed top-1/2 left-1/2 w-[18px] h-[18px] -ml-[9px] -mt-[9px] pointer-events-none opacity-85 z-20 hidden before:content-[''] before:absolute before:left-1/2 before:top-0 before:w-[2px] before:h-full before:-translate-x-1/2 before:bg-white after:content-[''] after:absolute after:top-1/2 after:left-0 after:w-full after:h-[2px] after:-translate-y-1/2 after:bg-white"
           />
+
+          {/* Mesh rotation HUD */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm font-medium tracking-wide shadow-lg backdrop-blur pointer-events-none">
+            <span className="mr-3">Mesh Rotation:</span>
+            <span className="mr-3">X {formatRotation(meshRotationState.x)}</span>
+            <span className="mr-3">Y {formatRotation(meshRotationState.y)}</span>
+            <span>Z {formatRotation(meshRotationState.z)}</span>
+          </div>
         </>
       )}
 
