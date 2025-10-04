@@ -9,15 +9,13 @@
   "texture_image_url": "",
   "text_style_prompt": "",
   "image_style_url": "",
-  "status": "FAILED",
-  "created_at": 1759613477709,
-  "progress": 0,
-  "started_at": 1759613478159,
-  "finished_at": 1759614193684,
-  "expires_at": 1759873393684,
-  "task_error": {
-    "message": "Fail to consume radience-field-to-texture on meshy-serving"
-  },
+  "status": "IN_PROGRESS",
+  "created_at": 1759613220736,
+  "progress": 49,
+  "started_at": 1759613220803,
+  "finished_at": 0,
+  "expires_at": 0,
+  "task_error": null,
   "model_url": "",
   "model_urls": {
     "glb": ""

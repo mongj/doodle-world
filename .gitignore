@@ -47,3 +47,4 @@ meshy_status.json
 
 # meshy task status files
 /meshy_tasks
+*.jpg
