@@ -1,4 +1,6 @@
+import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
+import path from "path";
 
 const API_BASE_URL = "https://marble2-kgw-prod-iac1.wlt-ai.art/api/v1";
 const BEARER_TOKEN = process.env.MARBLE_API_TOKEN;
@@ -169,8 +171,6 @@ export async function POST(request: NextRequest) {
     };
 
     // Store in file system for persistence
-    const fs = require("fs");
-    const path = require("path");
     const jobsDir = path.join(process.cwd(), "jobs");
 
     if (!fs.existsSync(jobsDir)) {
