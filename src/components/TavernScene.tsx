@@ -1597,8 +1597,8 @@ export default function TavernScene() {
       setGenerationProgress(10);
 
       // Poll for preview completion
-      const maxTries = 120;
-      const delayMs = 3000;
+      const maxTries = 100;
+      const delayMs = 5000;
       let previewComplete = false;
 
       for (let i = 0; i < maxTries; i++) {
@@ -1753,7 +1753,7 @@ export default function TavernScene() {
       reader.readAsDataURL(file);
       const dataUri = await base64Promise;
 
-      setUploadProgress("Sending to Meshy AI...");
+      setUploadProgress("Generating your creation...");
       setGenerationProgress(5);
 
       // Send to backend API - returns immediately with task ID
@@ -1792,11 +1792,11 @@ export default function TavernScene() {
         } catch (err) {
           console.error("Error polling status:", err);
         }
-      }, 2000);
+      }, 5000);
 
       // Poll for completion (webhook updates the status file)
-      const maxTries = 120;
-      const delayMs = 3000;
+      const maxTries = 100;
+      const delayMs = 5000;
 
       for (let i = 0; i < maxTries; i++) {
         await new Promise((resolve) => setTimeout(resolve, delayMs));

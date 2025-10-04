@@ -1,4 +1,4 @@
-import { proxyMarbleCdnUrl } from "@/utils/cdn-proxy";
+import { proxify } from "@/utils/cdn-proxy";
 import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
@@ -128,19 +128,64 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Trigger music generation if job just succeeded and not already triggered
+    if (result.status === "SUCCEEDED" && !updatedJob.musicGenerationTriggered) {
+      updatedJob.musicGenerationTriggered = true;
+      updatedJob.musicGenerationStatus = "pending";
+
+      const musicPrompt = result.generation_input?.prompt?.text_prompt;
+
+      console.log(
+        `[Status] Triggering music generation for job ${jobId} with prompt: ${musicPrompt}`
+      );
+
+      // Trigger music generation asynchronously (don't wait for it)
+      fetch(`${request.nextUrl.origin}/api/music/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: musicPrompt,
+        }),
+      })
+        .then(async (musicResponse) => {
+          const musicResult = await musicResponse.json();
+
+          // Update job with background music URL
+          const jobData = JSON.parse(fs.readFileSync(jobPath, "utf-8"));
+          jobData.musicGenerationStatus = musicResponse.ok
+            ? "completed"
+            : "failed";
+
+          if (musicResponse.ok && musicResult.url) {
+            jobData.backgroundMusic = musicResult.url;
+            console.log(
+              `[Status] Music generation completed: ${musicResult.url}`
+            );
+          }
+
+          fs.writeFileSync(jobPath, JSON.stringify(jobData, null, 2));
+        })
+        .catch((err) => {
+          console.error("Music generation failed:", err);
+          const jobData = JSON.parse(fs.readFileSync(jobPath, "utf-8"));
+          jobData.musicGenerationStatus = "failed";
+          fs.writeFileSync(jobPath, JSON.stringify(jobData, null, 2));
+        });
+    }
+
     fs.writeFileSync(jobPath, JSON.stringify(updatedJob, null, 2));
 
     // Return status info with proxied CDN URLs
     const output = result.generation_output
       ? {
           ...result.generation_output,
-          ply_url: proxyMarbleCdnUrl(result.generation_output.ply_url),
-          collider_mesh_url: proxyMarbleCdnUrl(
+          ply_url: proxify(result.generation_output.ply_url),
+          collider_mesh_url: proxify(
             result.generation_output.collider_mesh_url
           ),
-          image_prompt_url: proxyMarbleCdnUrl(
-            result.generation_output.image_prompt_url
-          ),
+          image_prompt_url: proxify(result.generation_output.image_prompt_url),
         }
       : null;
 
@@ -154,7 +199,9 @@ export async function GET(request: NextRequest) {
       model: localJob.model,
       prompt: localJob.prompt,
       meshConversionStatus: updatedJob.meshConversionStatus,
-      convertedMeshUrl: proxyMarbleCdnUrl(updatedJob.convertedMeshUrl),
+      convertedMeshUrl: proxify(updatedJob.convertedMeshUrl),
+      musicGenerationStatus: updatedJob.musicGenerationStatus,
+      backgroundMusic: updatedJob.backgroundMusic,
     });
   } catch (error) {
     console.error("Error checking job status:", error);

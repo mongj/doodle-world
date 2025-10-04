@@ -10,7 +10,10 @@
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.1",
+    "@elevenlabs/elevenlabs-js": "^2.17.0",
+    "@google-cloud/storage": "^7.17.1",
     "@sparkjsdev/spark": "^0.1.9",
+    "dotenv": "^17.2.3",
     "next": "15.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
