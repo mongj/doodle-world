@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
         Authorization: `Bearer ${MESHY_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ image_url }),
+      body: JSON.stringify({ image_url, ai_model: "latest" }),
     });
 
     const createJson = await createRes.json();
