@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const API_BASE_URL = "https://marble2-kgw-prod-iac1.wlt-ai.art/api/v1";
 const BEARER_TOKEN = process.env.MARBLE_API_TOKEN;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,8 +32,80 @@ export async function POST(request: NextRequest) {
     if (image) {
       const arrayBuffer = await image.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      imageBase64 = buffer.toString("base64");
+      const inputImageBase64 = buffer.toString("base64");
       extension = image.name.split(".").pop() || "jpg";
+
+      // Determine MIME type
+      let mimeType = "image/png";
+      if (extension === "png") mimeType = "image/png";
+      else if (extension === "jpg" || extension === "jpeg")
+        mimeType = "image/jpeg";
+      else if (extension === "gif") mimeType = "image/gif";
+      else if (extension === "webp") mimeType = "image/webp";
+
+      // Call Gemini 2.5 image API to generate new image based on text prompt
+      if (GEMINI_API_KEY) {
+        try {
+          const geminiResponse = await fetch(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent",
+            {
+              method: "POST",
+              headers: {
+                "x-goog-api-key": GEMINI_API_KEY,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [
+                      {
+                        inlineData: {
+                          mime_type: mimeType,
+                          data: inputImageBase64,
+                        },
+                      },
+                      { text: textPrompt },
+                    ],
+                  },
+                ],
+              }),
+            }
+          );
+
+          if (geminiResponse.ok) {
+            const geminiResult = await geminiResponse.json();
+
+            // Extract the generated image from Gemini response
+            const parts = geminiResult.candidates?.[0]?.content?.parts;
+            if (parts) {
+              const imagePart = parts.find(
+                (part: any) => part.inlineData?.data
+              );
+
+              if (imagePart) {
+                imageBase64 = imagePart.inlineData.data;
+                // Update extension based on Gemini output
+                if (imagePart.inlineData.mime_type === "image/png") {
+                  extension = "png";
+                } else if (imagePart.inlineData.mime_type === "image/jpeg") {
+                  extension = "jpg";
+                }
+              }
+            }
+          } else {
+            console.error("Gemini API error:", await geminiResponse.text());
+            // Fall back to using the original image
+            imageBase64 = inputImageBase64;
+          }
+        } catch (geminiError) {
+          console.error("Error calling Gemini API:", geminiError);
+          // Fall back to using the original image
+          imageBase64 = inputImageBase64;
+        }
+      } else {
+        // No Gemini API key, use original image
+        imageBase64 = inputImageBase64;
+      }
     }
 
     // Construct request body matching Marble API spec
