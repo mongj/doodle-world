@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
-import * as THREE from 'three';
-import * as RAPIER from '@dimforge/rapier3d-compat';
-import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark';
-import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import * as RAPIER from "@dimforge/rapier3d-compat";
+import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
+import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
+import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
+import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
-const Whiteboard = dynamic(() => import('./Whiteboard'), { ssr: false });
+const Whiteboard = dynamic(() => import("./Whiteboard"), { ssr: false });
 
 const GLOBAL_SCALE = 0.7;
 
@@ -30,38 +30,38 @@ const CONFIG = {
   VELOCITY_PITCH_RANGE: { min: 0.9, max: 1.1 },
   VOLUME_DISTANCE_MAX: 10,
   ENVIRONMENT: {
-    MESH: 'test.glb',
-    SPLATS: 'test.spz',
+    MESH: "test.glb",
+    SPLATS: "test.spz",
     SPLAT_SCALE: 3,
-    MESH_ROTATION: [Math.PI / 2, Math.PI , Math.PI],
+    MESH_ROTATION: [Math.PI / 2, Math.PI, Math.PI],
   },
   CHARACTERS: {
     ORC: {
-      MODEL: 'orc.glb',
+      MODEL: "orc.glb",
       POSITION: [-2, -0.8, 0],
       ROTATION: Math.PI / 2,
       SCALE: [1, 1, 1],
     },
     BARTENDER: {
-      MODEL: 'Bartending.fbx',
+      MODEL: "Bartending.fbx",
       POSITION: [3.0, -0.7, 2],
       ROTATION: -Math.PI / 2,
       SCALE: [0.007, 0.007, 0.007],
     },
   },
   AUDIO_FILES: {
-    BOUNCE: 'bounce.mp3',
-    BACKGROUND_MUSIC: 'kitchen_music.mp3',
+    BOUNCE: "bounce.mp3",
+    BACKGROUND_MUSIC: "kitchen_music.mp3",
     ORC_VOICES: [
-      'lines/rocks.mp3',
-      'lines/mushroom.mp3',
-      'lines/watch.mp3',
-      'lines/vex.mp3',
+      "lines/rocks.mp3",
+      "lines/mushroom.mp3",
+      "lines/watch.mp3",
+      "lines/vex.mp3",
     ],
     BARTENDER_VOICES: [
-      'lines/working.mp3',
-      'lines/juggler.mp3',
-      'lines/drink.mp3',
+      "lines/working.mp3",
+      "lines/juggler.mp3",
+      "lines/drink.mp3",
     ],
   },
   JENGA: {
@@ -82,27 +82,33 @@ const PLAYER_RADIUS = 0.1 * GLOBAL_SCALE;
 const PLAYER_HALF_HEIGHT = 0.5 * GLOBAL_SCALE;
 const PLAYER_EYE_HEIGHT = 1.0 * GLOBAL_SCALE;
 const PLAYER_JUMP_SPEED = 8.0 * GLOBAL_SCALE;
-const PROJECTILE_SPAWN_OFFSET = PLAYER_RADIUS + CONFIG.PROJECTILE_RADIUS + 0.15 * GLOBAL_SCALE;
+const PROJECTILE_SPAWN_OFFSET =
+  PLAYER_RADIUS + CONFIG.PROJECTILE_RADIUS + 0.15 * GLOBAL_SCALE;
 const FIXED_TIME_STEP = 1 / 60;
 const MAX_SUBSTEPS = 5;
 
 // Utility functions
-function setupMaterialsForLighting(object: THREE.Object3D, brightnessMultiplier = 1.0) {
+function setupMaterialsForLighting(
+  object: THREE.Object3D,
+  brightnessMultiplier = 1.0
+) {
   object.traverse((child) => {
     if ((child as THREE.Mesh).isMesh && (child as THREE.Mesh).material) {
       const mesh = child as THREE.Mesh;
-      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      const materials = Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material];
       const newMaterials: THREE.Material[] = [];
 
       for (const material of materials) {
-        if ('emissive' in material) {
+        if ("emissive" in material) {
           (material as any).emissive.setHex(0x000000);
         }
-        if ('emissiveIntensity' in material) {
+        if ("emissiveIntensity" in material) {
           (material as any).emissiveIntensity = 0;
         }
 
-        if (material.type === 'MeshBasicMaterial') {
+        if (material.type === "MeshBasicMaterial") {
           const basicMat = material as THREE.MeshBasicMaterial;
           const newMaterial = new THREE.MeshStandardMaterial({
             color: basicMat.color,
@@ -112,15 +118,18 @@ function setupMaterialsForLighting(object: THREE.Object3D, brightnessMultiplier 
           });
           newMaterials.push(newMaterial);
         } else {
-          if ('roughness' in material) (material as any).roughness = 0.8;
-          if ('metalness' in material) (material as any).metalness = 0.1;
-          if ('color' in material && brightnessMultiplier !== 1.0) {
+          if ("roughness" in material) (material as any).roughness = 0.8;
+          if ("metalness" in material) (material as any).metalness = 0.1;
+          if ("color" in material && brightnessMultiplier !== 1.0) {
             const currentColor = (material as any).color.clone();
             currentColor.multiplyScalar(brightnessMultiplier);
             (material as any).color = currentColor;
           }
-          if ('transparent' in material && 'opacity' in material) {
-            if ((material as any).transparent && (material as any).opacity === 1) {
+          if ("transparent" in material && "opacity" in material) {
+            if (
+              (material as any).transparent &&
+              (material as any).opacity === 1
+            ) {
               (material as any).transparent = false;
             }
           }
@@ -128,7 +137,9 @@ function setupMaterialsForLighting(object: THREE.Object3D, brightnessMultiplier 
         }
       }
 
-      mesh.material = Array.isArray(mesh.material) ? newMaterials : newMaterials[0];
+      mesh.material = Array.isArray(mesh.material)
+        ? newMaterials
+        : newMaterials[0];
     }
   });
 }
@@ -141,12 +152,15 @@ function createBoneColliders(character: THREE.Object3D, world: RAPIER.World) {
       const bonePos = new THREE.Vector3();
       bone.getWorldPosition(bonePos);
 
-      const colliderDesc = RAPIER.ColliderDesc.ball(CONFIG.BONE_COLLIDER_RADIUS);
-      const bodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(
-        bonePos.x,
-        bonePos.y,
-        bonePos.z
+      const colliderDesc = RAPIER.ColliderDesc.ball(
+        CONFIG.BONE_COLLIDER_RADIUS
       );
+      const bodyDesc =
+        RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(
+          bonePos.x,
+          bonePos.y,
+          bonePos.z
+        );
 
       const body = world.createRigidBody(bodyDesc);
       world.createCollider(colliderDesc, body);
@@ -167,12 +181,18 @@ async function loadAudioFiles(audioContext: AudioContext, fileList: string[]) {
     );
     return buffers;
   } catch (error) {
-    console.error('Error loading audio files:', error);
+    console.error("Error loading audio files:", error);
     return [];
   }
 }
 
-function playAudio(audioContext: AudioContext | null, buffer: AudioBuffer | null, volume = 1.0, playbackRate = 1.0, muted: boolean) {
+function playAudio(
+  audioContext: AudioContext | null,
+  buffer: AudioBuffer | null,
+  volume = 1.0,
+  playbackRate = 1.0,
+  muted: boolean
+) {
   if (!audioContext || !buffer) return;
 
   const source = audioContext.createBufferSource();
@@ -202,9 +222,18 @@ export default function TavernScene() {
     y: CONFIG.ENVIRONMENT.MESH_ROTATION[1],
     z: CONFIG.ENVIRONMENT.MESH_ROTATION[2],
   });
+  const [playerPositionState, setPlayerPositionState] = useState({
+    x: 0,
+    y: 0,
+    z: 0,
+  });
 
   const formatRotation = (radians: number) =>
-    `${THREE.MathUtils.radToDeg(radians).toFixed(1)}° (${radians.toFixed(2)} rad)`;
+    `${THREE.MathUtils.radToDeg(radians).toFixed(1)}° (${radians.toFixed(
+      2
+    )} rad)`;
+
+  const formatPosition = (value: number) => value.toFixed(3);
 
   useEffect(() => {
     setShowUI(true);
@@ -212,7 +241,7 @@ export default function TavernScene() {
 
   useEffect(() => {
     const handleWhiteboardShortcut = (e: KeyboardEvent) => {
-      if (e.code === 'KeyL') {
+      if (e.code === "KeyL") {
         const newState = !showWhiteboard;
         setShowWhiteboard(newState);
 
@@ -229,7 +258,7 @@ export default function TavernScene() {
             }, 100);
           }
         }
-      } else if (e.code === 'Escape' && showWhiteboard) {
+      } else if (e.code === "Escape" && showWhiteboard) {
         setShowWhiteboard(false);
         // Re-lock pointer after closing with ESC
         setTimeout(() => {
@@ -240,8 +269,9 @@ export default function TavernScene() {
       }
     };
 
-    window.addEventListener('keydown', handleWhiteboardShortcut);
-    return () => window.removeEventListener('keydown', handleWhiteboardShortcut);
+    window.addEventListener("keydown", handleWhiteboardShortcut);
+    return () =>
+      window.removeEventListener("keydown", handleWhiteboardShortcut);
   }, [showWhiteboard]);
 
   useEffect(() => {
@@ -254,12 +284,15 @@ export default function TavernScene() {
       try {
         const initPromise = RAPIER.init();
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Rapier initialization timeout')), CONFIG.RAPIER_INIT_TIMEOUT)
+          setTimeout(
+            () => reject(new Error("Rapier initialization timeout")),
+            CONFIG.RAPIER_INIT_TIMEOUT
+          )
         );
         await Promise.race([initPromise, timeoutPromise]);
-        console.log('✓ Rapier physics initialized');
+        console.log("✓ Rapier physics initialized");
       } catch (error) {
-        console.error('Failed to initialize Rapier:', error);
+        console.error("Failed to initialize Rapier:", error);
         return;
       }
 
@@ -268,7 +301,12 @@ export default function TavernScene() {
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x202020);
 
-      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
       camera.rotation.y = Math.PI;
 
       const renderer = new THREE.WebGLRenderer();
@@ -300,13 +338,18 @@ export default function TavernScene() {
       const world = new RAPIER.World(CONFIG.GRAVITY);
 
       // Jenga tower
-      const jengaBlocks: Array<{ mesh: THREE.Mesh; body: RAPIER.RigidBody }> = [];
+      const jengaBlocks: Array<{ mesh: THREE.Mesh; body: RAPIER.RigidBody }> =
+        [];
       const bodyToMesh = new Map<number, THREE.Mesh>();
       const projectileBodies = new Set<number>();
       const meshToBody = new Map<THREE.Mesh, RAPIER.RigidBody>();
       const grabbableMeshes: THREE.Mesh[] = [];
 
-      function buildJengaTower(world: RAPIER.World, scene: THREE.Scene, cfg: typeof CONFIG.JENGA) {
+      function buildJengaTower(
+        world: RAPIER.World,
+        scene: THREE.Scene,
+        cfg: typeof CONFIG.JENGA
+      ) {
         const scale = cfg.SCALE;
         const brickLen = cfg.BRICK.LEN * scale;
         const brickWid = cfg.BRICK.WID * scale;
@@ -370,7 +413,10 @@ export default function TavernScene() {
           .setLinearDamping(4.0)
           .setCcdEnabled(true)
       );
-      const colliderDesc = RAPIER.ColliderDesc.capsule(PLAYER_HALF_HEIGHT, PLAYER_RADIUS)
+      const colliderDesc = RAPIER.ColliderDesc.capsule(
+        PLAYER_HALF_HEIGHT,
+        PLAYER_RADIUS
+      )
         .setFriction(0.8)
         .setRestitution(0.0);
       world.createCollider(colliderDesc, playerBody);
@@ -379,16 +425,17 @@ export default function TavernScene() {
       controlsRef.current = controls;
       (window as any).__TAVERN_CONTROLS__ = controls;
 
-      controls.addEventListener('lock', () => {
+      controls.addEventListener("lock", () => {
         gameStartedRef.current = true;
-        if (reticleRef.current) reticleRef.current.style.display = 'block';
-        if (startButtonRef.current) startButtonRef.current.style.display = 'none';
+        if (reticleRef.current) reticleRef.current.style.display = "block";
+        if (startButtonRef.current)
+          startButtonRef.current.style.display = "none";
       });
-      controls.addEventListener('unlock', () => {
-        if (reticleRef.current) reticleRef.current.style.display = 'none';
+      controls.addEventListener("unlock", () => {
+        if (reticleRef.current) reticleRef.current.style.display = "none";
         // Only show start button if game hasn't started yet (not when whiteboard opens)
         if (startButtonRef.current && !gameStartedRef.current) {
-          startButtonRef.current.style.display = 'flex';
+          startButtonRef.current.style.display = "flex";
         }
       });
 
@@ -401,7 +448,8 @@ export default function TavernScene() {
 
       function initAudio() {
         if (audioContext) return;
-        audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        audioContext = new (window.AudioContext ||
+          (window as any).webkitAudioContext)();
 
         Promise.all([
           fetch(CONFIG.AUDIO_FILES.BOUNCE)
@@ -411,11 +459,16 @@ export default function TavernScene() {
               audioBuffers.bounce = buffer;
               return buffer;
             }),
-          loadAudioFiles(audioContext, CONFIG.AUDIO_FILES.ORC_VOICES).then((buffers) => {
-            audioBuffers.orcVoices = buffers;
-            return buffers;
-          }),
-          loadAudioFiles(audioContext, CONFIG.AUDIO_FILES.BARTENDER_VOICES).then((buffers) => {
+          loadAudioFiles(audioContext, CONFIG.AUDIO_FILES.ORC_VOICES).then(
+            (buffers) => {
+              audioBuffers.orcVoices = buffers;
+              return buffers;
+            }
+          ),
+          loadAudioFiles(
+            audioContext,
+            CONFIG.AUDIO_FILES.BARTENDER_VOICES
+          ).then((buffers) => {
             audioBuffers.bartenderVoices = buffers;
             return buffers;
           }),
@@ -427,8 +480,8 @@ export default function TavernScene() {
               startBackgroundMusic();
             }),
         ])
-          .then(() => console.log('✓ Audio system initialized'))
-          .catch((error) => console.error('Audio loading error:', error));
+          .then(() => console.log("✓ Audio system initialized"))
+          .catch((error) => console.error("Audio loading error:", error));
       }
 
       function startBackgroundMusic() {
@@ -454,39 +507,53 @@ export default function TavernScene() {
         const voiceBuffers = audioBuffers[`${character}Voices`];
         if (!voiceBuffers || voiceBuffers.length === 0) return;
 
-        const randomBuffer = voiceBuffers[Math.floor(Math.random() * voiceBuffers.length)];
+        const randomBuffer =
+          voiceBuffers[Math.floor(Math.random() * voiceBuffers.length)];
         playAudio(audioContext, randomBuffer, CONFIG.VOICE_VOLUME, 1.0, muted);
         voiceCooldowns[cooldownKey] = CONFIG.VOICE_COOLDOWN;
         console.log(`${character} speaks`);
       }
 
-      function playBounceSound(position: THREE.Vector3, velocity: THREE.Vector3) {
+      function playBounceSound(
+        position: THREE.Vector3,
+        velocity: THREE.Vector3
+      ) {
         if (!audioBuffers.bounce) return;
 
         const distance = camera.position.distanceTo(position);
-        let volume = Math.max(0.1, 1.0 * (1 - distance / CONFIG.VOLUME_DISTANCE_MAX));
+        let volume = Math.max(
+          0.1,
+          1.0 * (1 - distance / CONFIG.VOLUME_DISTANCE_MAX)
+        );
 
         let pitch = 1.0;
         if (velocity) {
           const speed = velocity.length();
           const normalizedSpeed = Math.min(speed / 20, 1.0);
           volume *= 0.3 + normalizedSpeed * 0.7;
-          pitch = CONFIG.VELOCITY_PITCH_RANGE.min + normalizedSpeed * (CONFIG.VELOCITY_PITCH_RANGE.max - CONFIG.VELOCITY_PITCH_RANGE.min);
+          pitch =
+            CONFIG.VELOCITY_PITCH_RANGE.min +
+            normalizedSpeed *
+              (CONFIG.VELOCITY_PITCH_RANGE.max -
+                CONFIG.VELOCITY_PITCH_RANGE.min);
           pitch *= 0.97 + Math.random() * 0.06;
         }
 
         playAudio(audioContext, audioBuffers.bounce, volume, pitch, muted);
       }
 
-      document.addEventListener('click', initAudio, { once: true });
-      document.addEventListener('keydown', initAudio, { once: true });
+      document.addEventListener("click", initAudio, { once: true });
+      document.addEventListener("keydown", initAudio, { once: true });
 
       // Environment
       let environment: THREE.Group | null = null;
       let splatMesh: any = null;
       let splatsLoaded = false;
       const envDebugMaterial = new THREE.MeshNormalMaterial();
-      const originalEnvMaterials = new Map<string, THREE.Material | THREE.Material[]>();
+      const originalEnvMaterials = new Map<
+        string,
+        THREE.Material | THREE.Material[]
+      >();
 
       const gltfLoader = new GLTFLoader();
       gltfLoader.load(CONFIG.ENVIRONMENT.MESH, (gltf) => {
@@ -512,7 +579,9 @@ export default function TavernScene() {
             mesh.updateWorldMatrix(true, false);
             geometry.applyMatrix4(mesh.matrixWorld);
 
-            const vertices = new Float32Array(geometry.attributes.position.array);
+            const vertices = new Float32Array(
+              geometry.attributes.position.array
+            );
             let indices: Uint32Array;
 
             if (geometry.index) {
@@ -523,19 +592,24 @@ export default function TavernScene() {
               for (let i = 0; i < count; i++) indices[i] = i;
             }
 
-            const colliderDesc = RAPIER.ColliderDesc.trimesh(vertices, indices).setRestitution(CONFIG.ENVIRONMENT_RESTITUTION);
+            const colliderDesc = RAPIER.ColliderDesc.trimesh(
+              vertices,
+              indices
+            ).setRestitution(CONFIG.ENVIRONMENT_RESTITUTION);
             const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
             world.createCollider(colliderDesc, body);
           }
         });
 
-        console.log('✓ Environment collision mesh loaded');
+        console.log("✓ Environment collision mesh loaded");
       });
 
       splatMesh = new SplatMesh({
         url: CONFIG.ENVIRONMENT.SPLATS,
         onLoad: () => {
-          console.log(`✓ Gaussian splats loaded (${splatMesh.numSplats} splats)`);
+          console.log(
+            `✓ Gaussian splats loaded (${splatMesh.numSplats} splats)`
+          );
           splatsLoaded = true;
           if (environment) environment.visible = false;
           scene.add(splatMesh);
@@ -549,14 +623,21 @@ export default function TavernScene() {
       // Characters
       const characters: Record<string, THREE.Object3D> = {};
       const animationMixers: Record<string, THREE.AnimationMixer> = {};
-      const boneColliders: Record<string, Array<{ bone: THREE.Bone; body: RAPIER.RigidBody }>> = {};
+      const boneColliders: Record<
+        string,
+        Array<{ bone: THREE.Bone; body: RAPIER.RigidBody }>
+      > = {};
 
       gltfLoader.load(CONFIG.CHARACTERS.ORC.MODEL, (gltf) => {
         const orc = gltf.scene;
         const config = CONFIG.CHARACTERS.ORC;
         orc.rotation.y = config.ROTATION;
         orc.scale.set(config.SCALE[0], config.SCALE[1], config.SCALE[2]);
-        orc.position.set(config.POSITION[0], config.POSITION[1], config.POSITION[2]);
+        orc.position.set(
+          config.POSITION[0],
+          config.POSITION[1],
+          config.POSITION[2]
+        );
         scene.add(orc);
         setupMaterialsForLighting(orc);
 
@@ -569,7 +650,7 @@ export default function TavernScene() {
 
         boneColliders.orc = createBoneColliders(orc, world);
         characters.orc = orc;
-        console.log('✓ Orc character loaded');
+        console.log("✓ Orc character loaded");
       });
 
       const fbxLoader = new FBXLoader();
@@ -577,7 +658,11 @@ export default function TavernScene() {
         const bartender = fbx;
         const config = CONFIG.CHARACTERS.BARTENDER;
         bartender.scale.set(config.SCALE[0], config.SCALE[1], config.SCALE[2]);
-        bartender.position.set(config.POSITION[0], config.POSITION[1], config.POSITION[2]);
+        bartender.position.set(
+          config.POSITION[0],
+          config.POSITION[1],
+          config.POSITION[2]
+        );
         bartender.rotation.y = config.ROTATION;
         scene.add(bartender);
         setupMaterialsForLighting(bartender, 2.0);
@@ -591,46 +676,65 @@ export default function TavernScene() {
 
         boneColliders.bartender = createBoneColliders(bartender, world);
         characters.bartender = bartender;
-        console.log('✓ Bartender character loaded');
+        console.log("✓ Bartender character loaded");
       });
 
       // Input handling
       const keyState: Record<string, boolean> = {};
       let debugMode = false;
-      const debugVisuals: Record<string, Array<{ sphere: THREE.Mesh; bone: THREE.Bone }>> = { orc: [], bartender: [] };
+      const debugVisuals: Record<
+        string,
+        Array<{ sphere: THREE.Mesh; bone: THREE.Bone }>
+      > = { orc: [], bartender: [] };
 
-      let hover: { body: RAPIER.RigidBody | null; mesh: THREE.Mesh | null; savedEmissive: number | null } = {
+      let hover: {
+        body: RAPIER.RigidBody | null;
+        mesh: THREE.Mesh | null;
+        savedEmissive: number | null;
+      } = {
         body: null,
         mesh: null,
         savedEmissive: null,
       };
-      let grabbed: { body: RAPIER.RigidBody | null; mesh: THREE.Mesh | null } = { body: null, mesh: null };
+      let grabbed: { body: RAPIER.RigidBody | null; mesh: THREE.Mesh | null } =
+        { body: null, mesh: null };
 
       const handleKeyDown = (e: KeyboardEvent) => {
         keyState[e.code] = true;
 
-        if (e.code === 'KeyM') {
+        if (e.code === "KeyM") {
           debugMode = !debugMode;
           toggleDebugMode();
         }
 
-        if (e.code === 'Space' && playerBody) {
+        if (e.code === "Space" && playerBody) {
           if (isPlayerGrounded()) {
             const v = playerBody.linvel();
-            playerBody.setLinvel({ x: v.x, y: PLAYER_JUMP_SPEED, z: v.z }, true);
+            playerBody.setLinvel(
+              { x: v.x, y: PLAYER_JUMP_SPEED, z: v.z },
+              true
+            );
           }
         }
 
-        if (e.code === 'KeyP') {
+        if (e.code === "KeyP") {
           if (playerBody) {
             const p = playerBody.translation();
-            const posStr = `pos=(${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)})`;
+            const posStr = `pos=(${p.x.toFixed(3)}, ${p.y.toFixed(
+              3
+            )}, ${p.z.toFixed(3)})`;
             const forward = new THREE.Vector3();
             camera.getWorldDirection(forward);
             forward.normalize();
             const yaw = (Math.atan2(forward.x, forward.z) * 180) / Math.PI;
-            const pitch = (Math.asin(THREE.MathUtils.clamp(forward.y, -1, 1)) * 180) / Math.PI;
-            console.log(`[Player] ${posStr}  yaw=${yaw.toFixed(1)}°  pitch=${pitch.toFixed(1)}°`);
+            const pitch =
+              (Math.asin(THREE.MathUtils.clamp(forward.y, -1, 1)) * 180) /
+              Math.PI;
+            console.log(
+              `[Player] ${posStr}  yaw=${yaw.toFixed(
+                1
+              )}°  pitch=${pitch.toFixed(1)}°`
+            );
           }
         }
       };
@@ -639,10 +743,10 @@ export default function TavernScene() {
         keyState[e.code] = false;
       };
 
-      window.addEventListener('keydown', handleKeyDown);
-      window.addEventListener('keyup', handleKeyUp);
+      window.addEventListener("keydown", handleKeyDown);
+      window.addEventListener("keyup", handleKeyUp);
 
-      renderer.domElement.addEventListener('click', () => {
+      renderer.domElement.addEventListener("click", () => {
         if (!controls.isLocked) return;
         if (grabbed.body) {
           grabbed = { body: null, mesh: null };
@@ -665,7 +769,8 @@ export default function TavernScene() {
         const hit = world.castRayAndGetNormal(ray, footOffset + 0.6, true);
         if (!hit) return false;
         const normalY = hit.normal ? hit.normal.y : 1.0;
-        const nearGround = hit.timeOfImpact <= footOffset + 0.12 && normalY > 0.3;
+        const nearGround =
+          hit.timeOfImpact <= footOffset + 0.12 && normalY > 0.3;
         const vy = playerBody.linvel().y;
         return nearGround && vy <= 0.6;
       }
@@ -687,10 +792,13 @@ export default function TavernScene() {
             }
           });
 
-          const characterNames = ['orc', 'bartender'];
+          const characterNames = ["orc", "bartender"];
           for (let index = 0; index < characterNames.length; index++) {
             const character = characterNames[index];
-            if (boneColliders[character] && debugVisuals[character].length === 0) {
+            if (
+              boneColliders[character] &&
+              debugVisuals[character].length === 0
+            ) {
               const color = index === 0 ? 0xff00ff : 0x00ffff;
               for (const { bone } of boneColliders[character]) {
                 const pos = new THREE.Vector3();
@@ -719,7 +827,7 @@ export default function TavernScene() {
             }
           });
 
-          for (const character of ['orc', 'bartender']) {
+          for (const character of ["orc", "bartender"]) {
             for (const { sphere } of debugVisuals[character]) {
               scene.remove(sphere);
             }
@@ -762,10 +870,18 @@ export default function TavernScene() {
       }
 
       // Projectiles
-      const projectiles: Array<{ mesh: THREE.Mesh; body: RAPIER.RigidBody; lastVelocity: THREE.Vector3 }> = [];
+      const projectiles: Array<{
+        mesh: THREE.Mesh;
+        body: RAPIER.RigidBody;
+        lastVelocity: THREE.Vector3;
+      }> = [];
 
       function shootProjectile() {
-        const geometry = new THREE.SphereGeometry(CONFIG.PROJECTILE_RADIUS, 16, 16);
+        const geometry = new THREE.SphereGeometry(
+          CONFIG.PROJECTILE_RADIUS,
+          16,
+          16
+        );
         const material = new THREE.MeshStandardMaterial({ color: 0xff4444 });
         const mesh = new THREE.Mesh(geometry, material);
 
@@ -773,13 +889,19 @@ export default function TavernScene() {
         camera.getWorldDirection(forward);
         forward.normalize();
 
-        const origin = camera.position.clone().addScaledVector(forward, PROJECTILE_SPAWN_OFFSET);
+        const origin = camera.position
+          .clone()
+          .addScaledVector(forward, PROJECTILE_SPAWN_OFFSET);
         mesh.position.copy(origin);
         scene.add(mesh);
 
-        const bodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(origin.x, origin.y, origin.z).setCcdEnabled(true);
+        const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
+          .setTranslation(origin.x, origin.y, origin.z)
+          .setCcdEnabled(true);
         const body = world.createRigidBody(bodyDesc);
-        const colliderDesc = RAPIER.ColliderDesc.ball(CONFIG.PROJECTILE_RADIUS).setRestitution(CONFIG.PROJECTILE_RESTITUTION);
+        const colliderDesc = RAPIER.ColliderDesc.ball(
+          CONFIG.PROJECTILE_RADIUS
+        ).setRestitution(CONFIG.PROJECTILE_RESTITUTION);
         world.createCollider(colliderDesc, body);
 
         const velocity = forward.multiplyScalar(CONFIG.PROJECTILE_SPEED);
@@ -828,7 +950,10 @@ export default function TavernScene() {
         }
 
         physicsAccumulator += frameTime;
-        const steps = Math.min(Math.floor(physicsAccumulator / FIXED_TIME_STEP), MAX_SUBSTEPS);
+        const steps = Math.min(
+          Math.floor(physicsAccumulator / FIXED_TIME_STEP),
+          MAX_SUBSTEPS
+        );
         for (let i = 0; i < steps; i++) {
           world.step();
 
@@ -844,17 +969,22 @@ export default function TavernScene() {
               projectile.body.linvel().z
             );
 
-            const velocityChange = currentVelocity.clone().sub(projectile.lastVelocity);
+            const velocityChange = currentVelocity
+              .clone()
+              .sub(projectile.lastVelocity);
             if (velocityChange.length() > CONFIG.BOUNCE_DETECTION_THRESHOLD) {
               const position = new THREE.Vector3(pos.x, pos.y, pos.z);
               playBounceSound(position, currentVelocity);
 
-              for (const character of ['orc', 'bartender']) {
+              for (const character of ["orc", "bartender"]) {
                 if (boneColliders[character]) {
                   const hit = boneColliders[character].some(({ bone }) => {
                     const bonePos = new THREE.Vector3();
                     bone.getWorldPosition(bonePos);
-                    return position.distanceTo(bonePos) < CONFIG.CHARACTER_HIT_DISTANCE;
+                    return (
+                      position.distanceTo(bonePos) <
+                      CONFIG.CHARACTER_HIT_DISTANCE
+                    );
                   });
                   if (hit) playVoiceLine(character);
                 }
@@ -875,18 +1005,31 @@ export default function TavernScene() {
             const forward = new THREE.Vector3();
             camera.getWorldDirection(forward);
             forward.normalize();
-            const holdPos = camera.position.clone().addScaledVector(forward, CONFIG.GRAB.HOLD_DISTANCE);
+            const holdPos = camera.position
+              .clone()
+              .addScaledVector(forward, CONFIG.GRAB.HOLD_DISTANCE);
             grabbed.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
             grabbed.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-            grabbed.body.setTranslation({ x: holdPos.x, y: holdPos.y, z: holdPos.z }, true);
+            grabbed.body.setTranslation(
+              { x: holdPos.x, y: holdPos.y, z: holdPos.z },
+              true
+            );
 
             const yawForward = new THREE.Vector3(forward.x, 0, forward.z);
             if (yawForward.lengthSq() < 1e-6) yawForward.set(0, 0, 1);
             yawForward.normalize();
             const up = new THREE.Vector3(0, 1, 0);
-            const right = new THREE.Vector3().crossVectors(up, yawForward).normalize();
-            const trueUp = new THREE.Vector3().crossVectors(yawForward, right).normalize();
-            const basis = new THREE.Matrix4().makeBasis(right, trueUp, yawForward);
+            const right = new THREE.Vector3()
+              .crossVectors(up, yawForward)
+              .normalize();
+            const trueUp = new THREE.Vector3()
+              .crossVectors(yawForward, right)
+              .normalize();
+            const basis = new THREE.Matrix4().makeBasis(
+              right,
+              trueUp,
+              yawForward
+            );
             const q = new THREE.Quaternion().setFromRotationMatrix(basis);
             grabbed.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
           }
@@ -898,6 +1041,13 @@ export default function TavernScene() {
           const p = playerBody.translation();
           const feetY = p.y - (PLAYER_HALF_HEIGHT + PLAYER_RADIUS);
           camera.position.set(p.x, feetY + PLAYER_EYE_HEIGHT, p.z);
+
+          setPlayerPositionState((prev) => {
+            if (prev.x === p.x && prev.y === p.y && prev.z === p.z) {
+              return prev;
+            }
+            return { x: p.x, y: p.y, z: p.z };
+          });
         }
 
         sparkRenderer?.update({ scene });
@@ -916,7 +1066,7 @@ export default function TavernScene() {
         }
 
         if (debugMode) {
-          for (const character of ['orc', 'bartender']) {
+          for (const character of ["orc", "bartender"]) {
             for (const { sphere, bone } of debugVisuals[character]) {
               bone.getWorldPosition(sphere.position);
             }
@@ -945,7 +1095,11 @@ export default function TavernScene() {
         if (!mesh) return;
         const mat = mesh.material as THREE.MeshStandardMaterial;
         if (mat && mat.emissive) {
-          hover = { body: bestBody || null, mesh, savedEmissive: mat.emissive.getHex() };
+          hover = {
+            body: bestBody || null,
+            mesh,
+            savedEmissive: mat.emissive.getHex(),
+          };
           mat.emissive.setHex(CONFIG.GRAB.HIGHLIGHT_EMISSIVE);
         }
       }
@@ -955,16 +1109,16 @@ export default function TavernScene() {
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
       };
-      window.addEventListener('resize', handleResize);
+      window.addEventListener("resize", handleResize);
 
       animate(previousTime);
-      console.log('🚀 Tavern demo initialized successfully!');
+      console.log("🚀 Tavern demo initialized successfully!");
 
       cleanupRef.current = () => {
         mounted = false;
-        window.removeEventListener('keydown', handleKeyDown);
-        window.removeEventListener('keyup', handleKeyUp);
-        window.removeEventListener('resize', handleResize);
+        window.removeEventListener("keydown", handleKeyDown);
+        window.removeEventListener("keyup", handleKeyUp);
+        window.removeEventListener("resize", handleResize);
         renderer.dispose();
         if (container.contains(renderer.domElement)) {
           container.removeChild(renderer.domElement);
@@ -1010,12 +1164,24 @@ export default function TavernScene() {
               <div className="bg-white/95 rounded-3xl p-6 text-gray-800 text-sm space-y-3 max-w-md mx-auto shadow-xl">
                 <p className="font-bold text-lg mb-2">Controls:</p>
                 <div className="grid grid-cols-2 gap-2 text-left">
-                  <p><span className="font-semibold">WASD:</span> Move</p>
-                  <p><span className="font-semibold">R/F:</span> Up/Down</p>
-                  <p><span className="font-semibold">Space:</span> Jump</p>
-                  <p><span className="font-semibold">Click:</span> Shoot/Grab</p>
-                  <p><span className="font-semibold">M:</span> Debug</p>
-                  <p><span className="font-semibold">L:</span> Whiteboard</p>
+                  <p>
+                    <span className="font-semibold">WASD:</span> Move
+                  </p>
+                  <p>
+                    <span className="font-semibold">R/F:</span> Up/Down
+                  </p>
+                  <p>
+                    <span className="font-semibold">Space:</span> Jump
+                  </p>
+                  <p>
+                    <span className="font-semibold">Click:</span> Shoot/Grab
+                  </p>
+                  <p>
+                    <span className="font-semibold">M:</span> Debug
+                  </p>
+                  <p>
+                    <span className="font-semibold">L:</span> Whiteboard
+                  </p>
                 </div>
               </div>
             </div>
@@ -1023,7 +1189,10 @@ export default function TavernScene() {
 
           {/* Instructions at top */}
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-            <p className="text-white text-sm font-medium drop-shadow-lg">WASD: Move • R/F: Up/Down • Space: Jump • Click: Shoot/Grab • M: Debug • L: Whiteboard</p>
+            <p className="text-white text-sm font-medium drop-shadow-lg">
+              WASD: Move • R/F: Up/Down • Space: Jump • Click: Shoot/Grab • M:
+              Debug • L: Whiteboard
+            </p>
           </div>
 
           {/* Crosshair Reticle */}
@@ -1032,18 +1201,36 @@ export default function TavernScene() {
             className="fixed top-1/2 left-1/2 w-[18px] h-[18px] -ml-[9px] -mt-[9px] pointer-events-none opacity-85 z-20 hidden before:content-[''] before:absolute before:left-1/2 before:top-0 before:w-[2px] before:h-full before:-translate-x-1/2 before:bg-white after:content-[''] after:absolute after:top-1/2 after:left-0 after:w-full after:h-[2px] after:-translate-y-1/2 after:bg-white"
           />
 
+          {/* Player position HUD */}
+          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm font-medium tracking-wide shadow-lg backdrop-blur pointer-events-none">
+            <span className="mr-3">Player Position:</span>
+            <span className="mr-3">
+              X {formatPosition(playerPositionState.x)}
+            </span>
+            <span className="mr-3">
+              Y {formatPosition(playerPositionState.y)}
+            </span>
+            <span>Z {formatPosition(playerPositionState.z)}</span>
+          </div>
+
           {/* Mesh rotation HUD */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm font-medium tracking-wide shadow-lg backdrop-blur pointer-events-none">
             <span className="mr-3">Mesh Rotation:</span>
-            <span className="mr-3">X {formatRotation(meshRotationState.x)}</span>
-            <span className="mr-3">Y {formatRotation(meshRotationState.y)}</span>
+            <span className="mr-3">
+              X {formatRotation(meshRotationState.x)}
+            </span>
+            <span className="mr-3">
+              Y {formatRotation(meshRotationState.y)}
+            </span>
             <span>Z {formatRotation(meshRotationState.z)}</span>
           </div>
         </>
       )}
 
       {/* Whiteboard */}
-      {showWhiteboard && <Whiteboard onClose={() => setShowWhiteboard(false)} />}
+      {showWhiteboard && (
+        <Whiteboard onClose={() => setShowWhiteboard(false)} />
+      )}
     </>
   );
 }
