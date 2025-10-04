@@ -2,33 +2,33 @@
   {
     "id": "1f8d7af4-abd5-4272-9682-8e188e3f844c",
     "name": "Fantasy Village in the Forest",
-    "thumbnailUrl": "https://cdn.marble.worldlabs.ai/1f8d7af4-abd5-4272-9682-8e188e3f844c/8605a23f_image_prompt.png",
-    "splatUrl": "https://cdn.marble.worldlabs.ai/1f8d7af4-abd5-4272-9682-8e188e3f844c/1a72da9b-28a9-4542-9420-47767f170bdd_ceramic.ply",
-    "meshUrl": "https://cdn.marble.worldlabs.ai/collider_meshes/1f8d7af4-abd5-4272-9682-8e188e3f844c_collider.glb",
+    "thumbnailUrl": "cdn-proxy/1f8d7af4-abd5-4272-9682-8e188e3f844c/8605a23f_image_prompt.png",
+    "splatUrl": "/cdn-proxy/1f8d7af4-abd5-4272-9682-8e188e3f844c/1a72da9b-28a9-4542-9420-47767f170bdd_ceramic.ply",
+    "meshUrl": "/cdn-proxy/collider_meshes/1f8d7af4-abd5-4272-9682-8e188e3f844c_collider.glb",
     "isPreset": true
   },
   {
     "id": "a234aac5-5dd4-404f-8dd0-f97146d771d6",
     "name": "Christmas Village",
-    "thumbnailUrl": "https://cdn.marble.worldlabs.ai/a234aac5-5dd4-404f-8dd0-f97146d771d6/217b0d9e_image_prompt.jpg",
-    "splatUrl": "https://cdn.marble.worldlabs.ai/a234aac5-5dd4-404f-8dd0-f97146d771d6/9dd0894a-1b04-4588-8bda-79b02745c426_ceramic.ply",
-    "meshUrl": "https://cdn.marble.worldlabs.ai/collider_meshes/a234aac5-5dd4-404f-8dd0-f97146d771d6_collider.glb",
+    "thumbnailUrl": "/cdn-proxy/a234aac5-5dd4-404f-8dd0-f97146d771d6/217b0d9e_image_prompt.jpg",
+    "splatUrl": "/cdn-proxy/a234aac5-5dd4-404f-8dd0-f97146d771d6/9dd0894a-1b04-4588-8bda-79b02745c426_ceramic.ply",
+    "meshUrl": "/cdn-proxy/collider_meshes/a234aac5-5dd4-404f-8dd0-f97146d771d6_collider.glb",
     "isPreset": true
   },
   {
     "id": "134f001d-8172-4348-9f3b-4e3062f74837",
     "name": "Atlantis",
-    "thumbnailUrl": "https://cdn.marble.worldlabs.ai/134f001d-8172-4348-9f3b-4e3062f74837/9b7b6102_image_prompt.png",
-    "splatUrl": "https://cdn.marble.worldlabs.ai/134f001d-8172-4348-9f3b-4e3062f74837/0cdbfdf4-59a9-4195-af13-49b179b353a1_ceramic.ply",
-    "meshUrl": "https://cdn.marble.worldlabs.ai/collider_meshes/134f001d-8172-4348-9f3b-4e3062f74837_collider.glb",
+    "thumbnailUrl": "/cdn-proxy/134f001d-8172-4348-9f3b-4e3062f74837/9b7b6102_image_prompt.png",
+    "splatUrl": "/cdn-proxy/134f001d-8172-4348-9f3b-4e3062f74837/0cdbfdf4-59a9-4195-af13-49b179b353a1_ceramic.ply",
+    "meshUrl": "/cdn-proxy/collider_meshes/134f001d-8172-4348-9f3b-4e3062f74837_collider.glb",
     "isPreset": true
   },
   {
     "id": "9f09b3a6-eb93-4183-bca5-3ad66875152e",
     "name": "Chic Study Room",
-    "thumbnailUrl": "https://cdn.marble.worldlabs.ai/9f09b3a6-eb93-4183-bca5-3ad66875152e/1c54fefa_image_prompt.png",
-    "splatUrl": "https://cdn.marble.worldlabs.ai/9f09b3a6-eb93-4183-bca5-3ad66875152e/e18e9b67-9d58-4d4f-af1e-adc1417b9bfe_ceramic.ply",
-    "meshUrl": "https://cdn.marble.worldlabs.ai/collider_meshes/9f09b3a6-eb93-4183-bca5-3ad66875152e_collider.glb",
+    "thumbnailUrl": "/cdn-proxy/9f09b3a6-eb93-4183-bca5-3ad66875152e/1c54fefa_image_prompt.png",
+    "splatUrl": "/cdn-proxy/9f09b3a6-eb93-4183-bca5-3ad66875152e/e18e9b67-9d58-4d4f-af1e-adc1417b9bfe_ceramic.ply",
+    "meshUrl": "/cdn-proxy/collider_meshes/9f09b3a6-eb93-4183-bca5-3ad66875152e_collider.glb",
     "isPreset": true
   }
 ]

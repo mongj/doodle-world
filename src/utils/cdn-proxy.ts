@@ -11,7 +11,7 @@ export function proxyMarbleCdnUrl(
   if (url.startsWith("/")) return url;
 
   // If it's a Marble CDN URL, convert it to use our proxy
-  if (url.includes("cdn.marble.worldlabs.ai")) {
+  if (url.includes("https://cdn.marble.worldlabs.ai")) {
     return url.replace("https://cdn.marble.worldlabs.ai", "/cdn-proxy");
   }
 
