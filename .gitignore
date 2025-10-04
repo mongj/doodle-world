@@ -4,3 +4,4 @@ node_modules/
 public_extra/
 *.envMiniconda3-latest-MacOSX-arm64.sh
 my-app/public/test.glb
+*.env
