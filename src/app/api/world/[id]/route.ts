@@ -1,4 +1,4 @@
-import { proxyMarbleCdnUrl } from "@/utils/cdn-proxy";
+import { proxify } from "@/utils/cdn-proxy";
 import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
@@ -20,10 +20,10 @@ export async function GET(
         return NextResponse.json({
           id: presetWorld.id,
           name: presetWorld.name,
-          thumbnailUrl: proxyMarbleCdnUrl(presetWorld.thumbnailUrl),
-          splatUrl: proxyMarbleCdnUrl(presetWorld.splatUrl),
-          meshUrl: proxyMarbleCdnUrl(presetWorld.meshUrl),
-          backgroundMusic: presetWorld.backgroundMusic,
+          thumbnailUrl: proxify(presetWorld.thumbnailUrl),
+          splatUrl: proxify(presetWorld.splatUrl),
+          meshUrl: proxify(presetWorld.meshUrl),
+          backgroundMusic: proxify(presetWorld.backgroundMusic),
           isPreset: true,
         });
       }
@@ -41,12 +41,12 @@ export async function GET(
         return NextResponse.json({
           id: worldId,
           name: job.prompt || "Generated World",
-          thumbnailUrl: proxyMarbleCdnUrl(job.output.image_prompt_url) || null,
-          splatUrl: proxyMarbleCdnUrl(job.output.ply_url),
+          thumbnailUrl: proxify(job.output.image_prompt_url) || null,
+          splatUrl: proxify(job.output.ply_url),
           meshUrl:
-            proxyMarbleCdnUrl(
-              job.convertedMeshUrl || job.output.converted_mesh_url
-            ) || null,
+            proxify(job.convertedMeshUrl || job.output.converted_mesh_url) ||
+            null,
+          backgroundMusic: proxify(job.backgroundMusic),
           isPreset: false,
           status: job.status,
           createdAt: job.createdAt,

@@ -276,17 +276,18 @@ export default function Home() {
         {/* Create Button on Top */}
         <div className="max-w-7xl mx-auto mb-8">
           <button
-        onClick={() => setIsDialogOpen(true)}
-        className="w-full bg-gradient-to-br from-purple-400 to-purple-500 rounded-3xl p-8 shadow-lg hover:shadow-xl hover:scale-[1.01] transition-all cursor-pointer"
+            onClick={() => setIsDialogOpen(true)}
+            className="w-full bg-gradient-to-br from-purple-400 to-purple-500 rounded-3xl p-8 shadow-lg hover:shadow-xl hover:scale-[1.01] transition-all cursor-pointer"
           >
-        <div className="bg-white rounded-2xl p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">
-            ✨ Create Your Own World
-            </h2>
-          <p className="text-gray-600">
-            Generate custom 3D environments from your own images and imagination
-          </p>
-        </div>
+            <div className="bg-white rounded-2xl p-6">
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                ✨ Create Your Own World
+              </h2>
+              <p className="text-gray-600">
+                Generate custom 3D environments from your own images and
+                imagination
+              </p>
+            </div>
           </button>
         </div>
 
