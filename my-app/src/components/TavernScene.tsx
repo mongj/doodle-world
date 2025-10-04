@@ -189,11 +189,11 @@ function playAudio(audioContext: AudioContext | null, buffer: AudioBuffer | null
 
 export default function TavernScene() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const volumeButtonRef = useRef<HTMLButtonElement>(null);
   const reticleRef = useRef<HTMLDivElement>(null);
   const startButtonRef = useRef<HTMLDivElement>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const controlsRef = useRef<PointerLockControls | null>(null);
+  const gameStartedRef = useRef(false);
   const [showUI, setShowUI] = useState(false);
   const [showWhiteboard, setShowWhiteboard] = useState(false);
 
@@ -371,12 +371,16 @@ export default function TavernScene() {
       (window as any).__TAVERN_CONTROLS__ = controls;
 
       controls.addEventListener('lock', () => {
+        gameStartedRef.current = true;
         if (reticleRef.current) reticleRef.current.style.display = 'block';
         if (startButtonRef.current) startButtonRef.current.style.display = 'none';
       });
       controls.addEventListener('unlock', () => {
         if (reticleRef.current) reticleRef.current.style.display = 'none';
-        if (startButtonRef.current) startButtonRef.current.style.display = 'flex';
+        // Only show start button if game hasn't started yet (not when whiteboard opens)
+        if (startButtonRef.current && !gameStartedRef.current) {
+          startButtonRef.current.style.display = 'flex';
+        }
       });
 
       // Audio system
@@ -385,16 +389,6 @@ export default function TavernScene() {
       const voiceCooldowns: Record<string, number> = { orc: 0, bartender: 0 };
       let musicGain: GainNode | null = null;
       let muted = false;
-
-      function setMuted(m: boolean) {
-        muted = m;
-        if (volumeButtonRef.current) {
-          volumeButtonRef.current.textContent = muted ? '🔇' : '🔊';
-        }
-        if (musicGain) {
-          musicGain.gain.value = muted ? 0 : CONFIG.MUSIC_VOLUME;
-        }
-      }
 
       function initAudio() {
         if (audioContext) return;
@@ -477,12 +471,6 @@ export default function TavernScene() {
 
       document.addEventListener('click', initAudio, { once: true });
       document.addEventListener('keydown', initAudio, { once: true });
-
-      if (volumeButtonRef.current) {
-        volumeButtonRef.current.addEventListener('click', () => {
-          setMuted(!muted);
-        });
-      }
 
       // Environment
       let environment: THREE.Group | null = null;
@@ -973,30 +961,34 @@ export default function TavernScene() {
           {/* Start Button Overlay */}
           <div
             ref={startButtonRef}
-            className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70 z-30"
+            className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-30"
             onClick={handleStartClick}
           >
             <div className="text-center">
-              <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-6 px-12 rounded-lg text-2xl mb-6 shadow-2xl transition-all hover:scale-105">
+              <h2 className="text-4xl font-serif italic text-white mb-4">
+                Ready to explore?
+              </h2>
+              <button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold py-6 px-12 rounded-full text-2xl mb-8 shadow-2xl transition-all hover:scale-105">
                 Click to Start
               </button>
-              <div className="text-white text-sm space-y-2 max-w-md mx-auto">
-                <p className="font-semibold">Controls:</p>
-                <p>WASD: Move • R/F: Up/Down • Space: Jump</p>
-                <p>Click: Shoot/Grab • M: Debug • P: Position • L: Whiteboard</p>
+              <div className="bg-white/95 rounded-3xl p-6 text-gray-800 text-sm space-y-3 max-w-md mx-auto shadow-xl">
+                <p className="font-bold text-lg mb-2">Controls:</p>
+                <div className="grid grid-cols-2 gap-2 text-left">
+                  <p><span className="font-semibold">WASD:</span> Move</p>
+                  <p><span className="font-semibold">R/F:</span> Up/Down</p>
+                  <p><span className="font-semibold">Space:</span> Jump</p>
+                  <p><span className="font-semibold">Click:</span> Shoot/Grab</p>
+                  <p><span className="font-semibold">M:</span> Debug</p>
+                  <p><span className="font-semibold">L:</span> Whiteboard</p>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Volume Button */}
-          <button
-            ref={volumeButtonRef}
-            className="absolute top-4 right-4 z-20 bg-black bg-opacity-50 text-white border border-gray-600 rounded px-3 py-2 cursor-pointer text-sm hover:bg-opacity-70"
-            aria-label="Toggle volume"
-            title="Toggle volume"
-          >
-            🔊
-          </button>
+          {/* Instructions at top */}
+          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+            <p className="text-white text-sm font-medium drop-shadow-lg">WASD: Move • R/F: Up/Down • Space: Jump • Click: Shoot/Grab • M: Debug • L: Whiteboard</p>
+          </div>
 
           {/* Crosshair Reticle */}
           <div
