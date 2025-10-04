@@ -47,10 +47,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Simple polling for status
-    const maxTries = 30; // ~60s at 2s/try
-    const delayMs = 2000;
+    const maxTries = 120; // ~600s at 5s/try
+    const delayMs = 5000;
     for (let i = 0; i < maxTries; i++) {
       const statusUrl = (STATUS_TEMPLATE || '').replace('{id}', id);
+      console.log(`[Meshy Poll] Attempt ${i + 1}/${maxTries} -> ${statusUrl}`);
       const statusRes = await fetch(statusUrl, {
         headers: { Authorization: `Bearer ${MESHY_API_KEY}` },
       });

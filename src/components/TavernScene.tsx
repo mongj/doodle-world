@@ -8,6 +8,7 @@ import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 const Whiteboard = dynamic(() => import("./Whiteboard"), { ssr: false });
 
@@ -340,6 +341,7 @@ export default function TavernScene() {
       // Jenga tower
       const jengaBlocks: Array<{ mesh: THREE.Mesh; body: RAPIER.RigidBody }> =
         [];
+      const dynamicModels: Array<{ root: THREE.Object3D; body: RAPIER.RigidBody }> = [];
       const bodyToMesh = new Map<number, THREE.Mesh>();
       const projectileBodies = new Set<number>();
       const meshToBody = new Map<THREE.Mesh, RAPIER.RigidBody>();
@@ -679,6 +681,145 @@ export default function TavernScene() {
         console.log("✓ Bartender character loaded");
       });
 
+      async function loadDynamicModel(url: string): Promise<void> {
+        try {
+          const forward = new THREE.Vector3();
+          camera.getWorldDirection(forward);
+          forward.normalize();
+          const spawnPosition = camera.position
+            .clone()
+            .addScaledVector(forward, 3);
+
+          let loadUrl = url;
+          try {
+            const parsed = new URL(url, window.location.href);
+            const currentOrigin = window.location.origin;
+            if (parsed.origin !== currentOrigin) {
+              loadUrl = `/api/whiteboard/model?url=${encodeURIComponent(
+                parsed.href
+              )}`;
+            }
+          } catch {
+            // Fallback to proxy attempt if url is relative but still errors
+            loadUrl = `/api/whiteboard/model?url=${encodeURIComponent(url)}`;
+          }
+
+          const gltf = await new Promise<GLTF>((resolve, reject) => {
+            gltfLoader.load(
+              loadUrl,
+              (loaded) => resolve(loaded),
+              undefined,
+              (error) => reject(error)
+            );
+          });
+
+          setupMaterialsForLighting(gltf.scene);
+          gltf.scene.position.copy(spawnPosition);
+          gltf.scene.rotation.set(0, 0, 0);
+          gltf.scene.scale.set(1, 1, 1);
+          gltf.scene.updateMatrixWorld(true);
+
+          const initialQuaternion = new THREE.Quaternion();
+          gltf.scene.getWorldQuaternion(initialQuaternion);
+
+          const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
+            .setTranslation(spawnPosition.x, spawnPosition.y, spawnPosition.z)
+            .setRotation({
+              x: initialQuaternion.x,
+              y: initialQuaternion.y,
+              z: initialQuaternion.z,
+              w: initialQuaternion.w,
+            })
+            .setCanSleep(true)
+            .setLinearDamping(0.1)
+            .setAngularDamping(0.2);
+          const sharedBody = world.createRigidBody(bodyDesc);
+
+          const dynamicEntry: {
+            root: THREE.Object3D;
+            body: RAPIER.RigidBody;
+          } = {
+            root: new THREE.Object3D(),
+            body: sharedBody,
+          };
+          dynamicEntry.root.position.copy(spawnPosition);
+          dynamicEntry.root.quaternion.copy(initialQuaternion);
+          scene.add(dynamicEntry.root);
+          dynamicEntry.root.updateMatrixWorld(true);
+          const parentQuaternionInverse = dynamicEntry.root.quaternion
+            .clone()
+            .invert();
+
+          const tempPosition = new THREE.Vector3();
+          const tempQuaternion = new THREE.Quaternion();
+          const tempScale = new THREE.Vector3();
+
+          gltf.scene.traverse((child) => {
+            if (!(child as THREE.Mesh).isMesh) return;
+            const mesh = child as THREE.Mesh;
+
+            mesh.updateWorldMatrix(true, false);
+            mesh.matrixWorld.decompose(
+              tempPosition,
+              tempQuaternion,
+              tempScale
+            );
+
+            const geometry = mesh.geometry.clone();
+            geometry.scale(tempScale.x, tempScale.y, tempScale.z);
+
+            const vertices = new Float32Array(
+              geometry.attributes.position.array
+            );
+            let indices: Uint32Array;
+            if (geometry.index) {
+              indices = new Uint32Array(geometry.index.array);
+            } else {
+              const count = geometry.attributes.position.count;
+              indices = new Uint32Array(count);
+              for (let i = 0; i < count; i += 1) indices[i] = i;
+            }
+
+            const worldPosition = tempPosition.clone();
+            const localPosition = worldPosition.clone();
+            dynamicEntry.root.worldToLocal(localPosition);
+
+            const localQuaternion = tempQuaternion.clone().premultiply(
+              parentQuaternionInverse
+            );
+
+            const colliderDesc = RAPIER.ColliderDesc.trimesh(vertices, indices)
+              .setTranslation(localPosition.x, localPosition.y, localPosition.z)
+              .setRotation({
+                x: localQuaternion.x,
+                y: localQuaternion.y,
+                z: localQuaternion.z,
+                w: localQuaternion.w,
+              })
+              .setFriction(0.8)
+              .setRestitution(0.05);
+            world.createCollider(colliderDesc, sharedBody);
+
+            mesh.parent?.remove(mesh);
+            mesh.position.copy(localPosition);
+            mesh.quaternion.copy(localQuaternion);
+            mesh.scale.copy(tempScale);
+            dynamicEntry.root.add(mesh);
+
+            meshToBody.set(mesh, sharedBody);
+            grabbableMeshes.push(mesh);
+          });
+
+          bodyToMesh.set(sharedBody.handle, dynamicEntry.root as THREE.Mesh);
+          dynamicModels.push(dynamicEntry);
+        } catch (error) {
+          console.error("Error loading dynamic model:", error);
+          throw error;
+        }
+      }
+
+      (window as any).__LOAD_DYNAMIC_MODEL__ = loadDynamicModel;
+
       // Input handling
       const keyState: Record<string, boolean> = {};
       let debugMode = false;
@@ -1013,6 +1154,18 @@ export default function TavernScene() {
               const rot = block.body.rotation();
               block.mesh.position.set(pos.x, pos.y, pos.z);
               block.mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w);
+            } catch {
+              continue;
+            }
+          }
+
+          for (const model of dynamicModels) {
+            if (!mounted) break;
+            try {
+              const pos = model.body.translation();
+              const rot = model.body.rotation();
+              model.root.position.set(pos.x, pos.y, pos.z);
+              model.root.quaternion.set(rot.x, rot.y, rot.z, rot.w);
             } catch {
               continue;
             }
