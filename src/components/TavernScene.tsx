@@ -1,3 +1,5 @@
+/* tslint:disable:no-unused-vars no-explicit-any*/
+
 "use client";
 
 import * as RAPIER from "@dimforge/rapier3d-compat";
@@ -102,10 +104,10 @@ function setupMaterialsForLighting(
 
       for (const material of materials) {
         if ("emissive" in material) {
-          (material as any).emissive.setHex(0x000000);
+          (material as THREE.MeshStandardMaterial).emissive.setHex(0x000000);
         }
         if ("emissiveIntensity" in material) {
-          (material as any).emissiveIntensity = 0;
+          (material as THREE.MeshStandardMaterial).emissiveIntensity = 0;
         }
 
         if (material.type === "MeshBasicMaterial") {
@@ -118,19 +120,23 @@ function setupMaterialsForLighting(
           });
           newMaterials.push(newMaterial);
         } else {
-          if ("roughness" in material) (material as any).roughness = 0.8;
-          if ("metalness" in material) (material as any).metalness = 0.1;
+          if ("roughness" in material)
+            (material as THREE.MeshStandardMaterial).roughness = 0.8;
+          if ("metalness" in material)
+            (material as THREE.MeshStandardMaterial).metalness = 0.1;
           if ("color" in material && brightnessMultiplier !== 1.0) {
-            const currentColor = (material as any).color.clone();
+            const currentColor = (
+              material as THREE.MeshStandardMaterial
+            ).color.clone();
             currentColor.multiplyScalar(brightnessMultiplier);
-            (material as any).color = currentColor;
+            (material as THREE.MeshStandardMaterial).color = currentColor;
           }
           if ("transparent" in material && "opacity" in material) {
             if (
-              (material as any).transparent &&
-              (material as any).opacity === 1
+              (material as THREE.MeshStandardMaterial).transparent &&
+              (material as THREE.MeshStandardMaterial).opacity === 1
             ) {
-              (material as any).transparent = false;
+              (material as THREE.MeshStandardMaterial).transparent = false;
             }
           }
           newMaterials.push(material);
@@ -408,8 +414,8 @@ export default function TavernScene() {
       // Player
       const playerBody = world.createRigidBody(
         RAPIER.RigidBodyDesc.dynamic()
-          .setTranslation(0,1, 0)
-          .lockRotations(true)
+          .setTranslation(0, 1, 0)
+          .lockRotations()
           .setLinearDamping(4.0)
           .setCcdEnabled(true)
       );
@@ -423,7 +429,9 @@ export default function TavernScene() {
 
       const controls = new PointerLockControls(camera, renderer.domElement);
       controlsRef.current = controls;
-      (window as any).__TAVERN_CONTROLS__ = controls;
+      (
+        window as Window & { __TAVERN_CONTROLS__?: PointerLockControls }
+      ).__TAVERN_CONTROLS__ = controls;
 
       controls.addEventListener("lock", () => {
         gameStartedRef.current = true;
@@ -444,12 +452,13 @@ export default function TavernScene() {
       const audioBuffers: Record<string, AudioBuffer | AudioBuffer[]> = {};
       const voiceCooldowns: Record<string, number> = { orc: 0, bartender: 0 };
       let musicGain: GainNode | null = null;
-      let muted = false;
+      const muted = false;
 
       function initAudio() {
         if (audioContext) return;
         audioContext = new (window.AudioContext ||
-          (window as any).webkitAudioContext)();
+          (window as Window & { webkitAudioContext?: typeof AudioContext })
+            .webkitAudioContext)();
 
         Promise.all([
           fetch(CONFIG.AUDIO_FILES.BOUNCE)
@@ -504,7 +513,9 @@ export default function TavernScene() {
         const cooldownKey = character;
         if (voiceCooldowns[cooldownKey] > 0) return;
 
-        const voiceBuffers = audioBuffers[`${character}Voices`];
+        const voiceBuffers = audioBuffers[`${character}Voices`] as
+          | AudioBuffer[]
+          | undefined;
         if (!voiceBuffers || voiceBuffers.length === 0) return;
 
         const randomBuffer =
@@ -539,7 +550,13 @@ export default function TavernScene() {
           pitch *= 0.97 + Math.random() * 0.06;
         }
 
-        playAudio(audioContext, audioBuffers.bounce, volume, pitch, muted);
+        playAudio(
+          audioContext,
+          audioBuffers.bounce as AudioBuffer,
+          volume,
+          pitch,
+          muted
+        );
       }
 
       document.addEventListener("click", initAudio, { once: true });
@@ -547,7 +564,7 @@ export default function TavernScene() {
 
       // Environment
       let environment: THREE.Group | null = null;
-      let splatMesh: any = null;
+      let splatMesh: (THREE.Object3D & { numSplats?: number }) | null = null;
       let splatsLoaded = false;
       const envDebugMaterial = new THREE.MeshNormalMaterial();
       const originalEnvMaterials = new Map<
@@ -608,11 +625,11 @@ export default function TavernScene() {
         url: CONFIG.ENVIRONMENT.SPLATS,
         onLoad: () => {
           console.log(
-            `✓ Gaussian splats loaded (${splatMesh.numSplats} splats)`
+            `✓ Gaussian splats loaded (${splatMesh!.numSplats} splats)`
           );
           splatsLoaded = true;
           if (environment) environment.visible = false;
-          scene.add(splatMesh);
+          scene.add(splatMesh!);
         },
       });
 
@@ -1049,7 +1066,10 @@ export default function TavernScene() {
                 yawForward
               );
               const q = new THREE.Quaternion().setFromRotationMatrix(basis);
-              grabbed.body.setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }, true);
+              grabbed.body.setRotation(
+                { x: q.x, y: q.y, z: q.z, w: q.w },
+                true
+              );
             } catch {
               // Physics body freed during cleanup
             }
@@ -1072,7 +1092,10 @@ export default function TavernScene() {
             });
           } catch (error) {
             // Physics body may have been freed during cleanup
-            console.warn("Physics body access error (likely during cleanup):", error);
+            console.warn(
+              "Physics body access error (likely during cleanup):",
+              error
+            );
             return;
           }
         }
@@ -1155,16 +1178,16 @@ export default function TavernScene() {
         window.removeEventListener("keydown", handleKeyDown);
         window.removeEventListener("keyup", handleKeyUp);
         window.removeEventListener("resize", handleResize);
-        
+
         // Dispose physics world
         try {
-          if (world && typeof world.free === 'function') {
+          if (world && typeof world.free === "function") {
             world.free();
           }
         } catch (error) {
           console.warn("Error disposing physics world:", error);
         }
-        
+
         renderer.dispose();
         if (container.contains(renderer.domElement)) {
           container.removeChild(renderer.domElement);
