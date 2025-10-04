@@ -1,0 +1,31 @@
+# This file specifies files that are *not* uploaded to Google Cloud
+# using gcloud.
+
+.gcloudignore
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+*.log
+.env
+.venv
+venv/
+env/
+credentials/
+*.json
+!requirements.txt
+README.md
+.DS_Store
+*.swp
+*.swo
+run-dev.sh
+test_api.py
+
