@@ -166,13 +166,17 @@ export default function Home() {
   };
 
   const handleGenerate = async () => {
-    if (!prompt) return;
+    // Require an image; prompt is optional
+    if (!uploadedFile) {
+      alert("Please upload an image to generate a world.");
+      return;
+    }
 
     setIsGenerating(true);
 
     try {
       const formData = new FormData();
-      formData.append("textPrompt", prompt);
+      formData.append("textPrompt", prompt || "");
       formData.append("model", "Marble 0.1-mini");
 
       if (uploadedFile) {
@@ -578,7 +582,7 @@ export default function Home() {
                 </button>
                 <button
                   onClick={handleGenerate}
-                  disabled={!prompt || isGenerating}
+                  disabled={!uploadedFile || isGenerating}
                   className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   {isGenerating ? "🔄 Generating..." : "🎨 Generate World"}

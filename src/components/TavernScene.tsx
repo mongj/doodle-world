@@ -256,6 +256,14 @@ export default function TavernScene() {
   const cleanupRef = useRef<(() => void) | null>(null);
   const controlsRef = useRef<PointerLockControls | null>(null);
   const gameStartedRef = useRef(false);
+  const navigateHome = () => {
+    try {
+      if (controlsRef.current) {
+        controlsRef.current.unlock();
+      }
+    } catch {}
+    window.location.href = "/";
+  };
   const [showUI, setShowUI] = useState(false);
   const [showWhiteboard, setShowWhiteboard] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -395,6 +403,8 @@ export default function TavernScene() {
             }, 100);
           }
         }
+      } else if (e.code === "KeyH") {
+        navigateHome();
       }
     };
 
@@ -1856,6 +1866,15 @@ export default function TavernScene() {
 
   return (
     <>
+      {/* Home button overlay */}
+      <div className="fixed top-4 left-4 z-50">
+        <button
+          onClick={navigateHome}
+          className="px-3 py-2 rounded-md bg-white/80 hover:bg-white text-gray-800 shadow border border-gray-200 text-sm"
+        >
+          Home
+        </button>
+      </div>
       <div ref={containerRef} className="w-full h-screen" />
 
       {showUI && (

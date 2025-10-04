@@ -6,7 +6,6 @@ import { isMarbleMeshUrl } from "@/utils/cdn-proxy";
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
@@ -152,23 +151,22 @@ function playAudio(
   return source;
 }
 
-export default function Scene({
-  meshUrl,
-  splatUrl,
-  backgroundMusic,
-}: SceneProps) {
-  console.log("rendering scene:", {
-    meshUrl: meshUrl,
-    splatUrl: splatUrl,
-    backgroundMusic: backgroundMusic,
-  });
+export default function Scene({ meshUrl, splatUrl }: SceneProps) {
+  console.log("rendering scene:", { meshUrl: meshUrl, splatUrl: splatUrl });
   const containerRef = useRef<HTMLDivElement>(null);
   const reticleRef = useRef<HTMLDivElement>(null);
   const startButtonRef = useRef<HTMLDivElement>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const controlsRef = useRef<PointerLockControls | null>(null);
   const gameStartedRef = useRef(false);
-  const backgroundMusicRef = useRef<HTMLAudioElement | null>(null);
+  const navigateHome = () => {
+    try {
+      if (controlsRef.current) {
+        controlsRef.current.unlock();
+      }
+    } catch {}
+    window.location.href = "/";
+  };
   const [showUI, setShowUI] = useState(false);
   const [showWhiteboard, setShowWhiteboard] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -205,81 +203,13 @@ export default function Scene({
 
   // Inventory items - easily extensible for future generated models
   const inventoryItems: InventoryItem[] = [
-    {
-      id: "orc",
-      name: "Orc",
-      modelUrl: "orc.glb",
-    },
-    {
-      id: "doggy",
-      name: "Doggy",
-      modelUrl: "/assets/doggy.glb",
-    },
-    {
-      id: "dragon",
-      name: "Dragon",
-      modelUrl: "/assets/dragon.glb",
-    },
-    {
-      id: "furry",
-      name: "Furry",
-      modelUrl: "/assets/furry.glb",
-    },
-    {
-      id: "peter-dink",
-      name: "Peter Dink",
-      modelUrl: "/assets/peter dink.glb",
-    },
+    // Add preloaded model URLs here
+    // Example: { id: "cube", name: "Cube", modelUrl: "/models/cube.glb" }
   ];
 
   useEffect(() => {
     setShowUI(true);
   }, []);
-
-  // Initialize background music
-  useEffect(() => {
-    console.log(
-      "[Background Music] useEffect triggered, backgroundMusic:",
-      backgroundMusic
-    );
-    if (backgroundMusic) {
-      console.log(
-        "[Background Music] Creating audio element for:",
-        backgroundMusic
-      );
-      const audio = new Audio(backgroundMusic);
-      audio.loop = true;
-      audio.volume = 0.3; // Set to 30% volume so it doesn't overpower
-      backgroundMusicRef.current = audio;
-
-      // Add event listeners for debugging
-      audio.addEventListener("canplay", () => {
-        console.log(
-          "[Background Music] Audio can play, ready state:",
-          audio.readyState
-        );
-      });
-      audio.addEventListener("loadeddata", () => {
-        console.log("[Background Music] Audio data loaded");
-      });
-      audio.addEventListener("error", (e) => {
-        console.error("[Background Music] Audio error:", e, audio.error);
-      });
-
-      console.log("[Background Music] Audio element created successfully");
-
-      return () => {
-        // Cleanup on unmount
-        console.log("[Background Music] Cleaning up audio element");
-        if (backgroundMusicRef.current) {
-          backgroundMusicRef.current.pause();
-          backgroundMusicRef.current = null;
-        }
-      };
-    } else {
-      console.log("[Background Music] No background music provided");
-    }
-  }, [backgroundMusic]);
 
   useEffect(() => {
     const handleWhiteboardShortcut = (e: KeyboardEvent) => {
@@ -391,12 +321,7 @@ export default function Scene({
           }
         }
       } else if (e.code === "KeyH") {
-        try {
-          if (controlsRef.current) {
-            controlsRef.current.unlock();
-          }
-        } catch {}
-        window.location.href = "/";
+        navigateHome();
       }
     };
 
@@ -410,6 +335,40 @@ export default function Scene({
 
     let mounted = true;
     const container = containerRef.current;
+
+    // Cache mesh files using Cache API for persistence across sessions
+    async function loadMeshWithCache(url: string): Promise<string> {
+      try {
+        const cacheName = "doodle-world-meshes-v1";
+        const cache = await caches.open(cacheName);
+
+        // Check if we have this mesh cached
+        const cachedResponse = await cache.match(url);
+
+        if (cachedResponse) {
+          console.log("✓ Loading mesh from cache:", url);
+          // Return the original URL - THREE.js will use browser cache
+          return url;
+        }
+
+        console.log("→ Downloading mesh (will be cached):", url);
+        // Fetch and cache the mesh
+        const response = await fetch(url);
+        if (response.ok) {
+          // Clone the response before caching (can only read once)
+          await cache.put(url, response.clone());
+          console.log("✓ Mesh cached successfully");
+        }
+
+        return url;
+      } catch (error) {
+        console.warn(
+          "Cache API not available or error, loading directly:",
+          error
+        );
+        return url;
+      }
+    }
 
     async function initScene() {
       try {
@@ -563,47 +522,10 @@ export default function Scene({
       ).__TAVERN_CONTROLS__ = controls;
 
       controls.addEventListener("lock", () => {
-        console.log("[Background Music] Controls locked, game starting");
         gameStartedRef.current = true;
         if (reticleRef.current) reticleRef.current.style.display = "block";
         if (startButtonRef.current)
           startButtonRef.current.style.display = "none";
-
-        // Start background music when user starts exploring
-        console.log(
-          "[Background Music] Checking if audio ref exists:",
-          !!backgroundMusicRef.current
-        );
-        if (backgroundMusicRef.current) {
-          console.log("[Background Music] Attempting to play audio...");
-          console.log(
-            "[Background Music] Audio state - paused:",
-            backgroundMusicRef.current.paused,
-            "readyState:",
-            backgroundMusicRef.current.readyState,
-            "src:",
-            backgroundMusicRef.current.src
-          );
-          backgroundMusicRef.current
-            .play()
-            .then(() => {
-              console.log("[Background Music] ✓ Audio playing successfully");
-            })
-            .catch((error) => {
-              console.error(
-                "[Background Music] ✗ Failed to play audio:",
-                error
-              );
-              console.error("[Background Music] Error details:", {
-                name: error.name,
-                message: error.message,
-                audioSrc: backgroundMusicRef.current?.src,
-                audioReadyState: backgroundMusicRef.current?.readyState,
-              });
-            });
-        } else {
-          console.log("[Background Music] No audio element in ref");
-        }
       });
       controls.addEventListener("unlock", () => {
         if (reticleRef.current) reticleRef.current.style.display = "none";
@@ -698,7 +620,10 @@ export default function Scene({
       const gltfLoader = new GLTFLoader();
       setLoadingMessage("Loading collision mesh...");
 
-      gltfLoader.load(meshUrl, (gltf) => {
+      // Try to load from cache first, then fallback to network
+      const cachedMeshUrl = await loadMeshWithCache(meshUrl);
+
+      gltfLoader.load(cachedMeshUrl, (gltf) => {
         environment = gltf.scene;
         environment.scale.set(-1, -1, 1);
         environment.rotation.set(
@@ -913,6 +838,35 @@ export default function Scene({
       }
 
       (window as any).__LOAD_DYNAMIC_MODEL__ = loadDynamicModel;
+
+      // Expose cache management functions for debugging
+      (window as any).__CLEAR_MESH_CACHE__ = async () => {
+        try {
+          const cacheName = "doodle-world-meshes-v1";
+          const deleted = await caches.delete(cacheName);
+          console.log(deleted ? "✓ Mesh cache cleared" : "⚠ No cache to clear");
+          return deleted;
+        } catch (error) {
+          console.error("Error clearing cache:", error);
+          return false;
+        }
+      };
+
+      (window as any).__LIST_CACHED_MESHES__ = async () => {
+        try {
+          const cacheName = "doodle-world-meshes-v1";
+          const cache = await caches.open(cacheName);
+          const requests = await cache.keys();
+          console.log(
+            `Cached meshes (${requests.length}):`,
+            requests.map((r) => r.url)
+          );
+          return requests.map((r) => r.url);
+        } catch (error) {
+          console.error("Error listing cache:", error);
+          return [];
+        }
+      };
 
       // Input handling
       const keyState: Record<string, boolean> = {};
@@ -1261,13 +1215,9 @@ export default function Scene({
                 grabbedRotationY -= ROTATION_SPEED;
                 rotated = true;
               }
-
+              
               if (rotated && i === 0) {
-                console.log(
-                  `Rotation: X=${grabbedRotationX.toFixed(
-                    2
-                  )}, Y=${grabbedRotationY.toFixed(2)}`
-                );
+                console.log(`Rotation: X=${grabbedRotationX.toFixed(2)}, Y=${grabbedRotationY.toFixed(2)}`);
               }
 
               const forward = new THREE.Vector3();
@@ -1284,14 +1234,9 @@ export default function Scene({
               );
 
               // Apply rotation using Euler angles
-              const euler = new THREE.Euler(
-                grabbedRotationX,
-                grabbedRotationY,
-                grabbedRotationZ,
-                "XYZ"
-              );
+              const euler = new THREE.Euler(grabbedRotationX, grabbedRotationY, grabbedRotationZ, 'XYZ');
               const rotation = new THREE.Quaternion().setFromEuler(euler);
-
+              
               grabbed.body.setRotation(
                 { x: rotation.x, y: rotation.y, z: rotation.z, w: rotation.w },
                 true
@@ -1383,12 +1328,6 @@ export default function Scene({
         window.removeEventListener("keyup", handleKeyUp);
         window.removeEventListener("resize", handleResize);
 
-        // Stop background music
-        if (backgroundMusicRef.current) {
-          console.log("[Background Music] Pausing audio in cleanup");
-          backgroundMusicRef.current.pause();
-        }
-
         // Dispose physics world
         try {
           if (world && typeof world.free === "function") {
@@ -1433,15 +1372,6 @@ export default function Scene({
     } catch (error) {
       console.error(`Error spawning ${item.name}:`, error);
     }
-  };
-
-  const handleInventoryClose = () => {
-    setShowInventory(false);
-    setTimeout(() => {
-      if (controlsRef.current) {
-        controlsRef.current.lock();
-      }
-    }, 100);
   };
 
   const handleTextToModel = async (
@@ -1514,9 +1444,9 @@ export default function Scene({
           previewComplete = true;
           break;
         } else if (statusData.status === "FAILED") {
-          const errorMsg = statusData.task_error?.message || "Preview generation failed";
-          alert(`❌ Model Generation Failed\n\n${errorMsg}`);
-          throw new Error(errorMsg);
+          throw new Error(
+            statusData.task_error?.message || "Preview generation failed"
+          );
         }
       }
 
@@ -1600,9 +1530,9 @@ export default function Scene({
             throw new Error("No GLB model URL in response");
           }
         } else if (statusData.status === "FAILED") {
-          const errorMsg = statusData.task_error?.message || "Texture generation failed";
-          alert(`❌ Texture Generation Failed\n\n${errorMsg}`);
-          throw new Error(errorMsg);
+          throw new Error(
+            statusData.task_error?.message || "Texture generation failed"
+          );
         }
       }
 
@@ -1647,30 +1577,10 @@ export default function Scene({
       setUploadProgress("Sending to Meshy AI...");
       setGenerationProgress(5);
 
-      // Send to backend API - returns immediately with task ID
-      const response = await fetch("/api/whiteboard/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          image_url: dataUri,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate model");
-      }
-
-      const data = await response.json();
-      const taskId = data.id;
-      console.log("Meshy task created:", taskId);
-
-      // Start progress polling with taskId
+      // Start progress polling
       const progressInterval = setInterval(async () => {
         try {
-          const statusRes = await fetch(`/api/whiteboard/status?taskId=${taskId}`);
+          const statusRes = await fetch("/api/whiteboard/status");
           if (statusRes.ok) {
             const statusData = await statusRes.json();
             const progress = statusData.progress || 0;
@@ -1685,56 +1595,56 @@ export default function Scene({
         }
       }, 2000);
 
-      // Poll for completion (webhook updates the status file)
-      const maxTries = 120;
-      const delayMs = 3000;
+      // Send to backend API - this polls internally
+      const response = await fetch("/api/whiteboard/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image_url: dataUri,
+        }),
+      });
 
-      for (let i = 0; i < maxTries; i++) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      // Stop polling
+      clearInterval(progressInterval);
 
-        const statusRes = await fetch(`/api/whiteboard/status?taskId=${taskId}`);
-        if (!statusRes.ok) continue;
-
-        const statusData = await statusRes.json();
-
-        if (statusData.status === "FAILED") {
-          clearInterval(progressInterval);
-          const errorMsg = statusData.task_error?.message || "Model generation failed";
-          alert(`❌ Model Generation Failed\n\n${errorMsg}`);
-          throw new Error(errorMsg);
-        }
-
-        if (statusData.status === "SUCCEEDED" && statusData.model_urls?.glb) {
-          clearInterval(progressInterval);
-          setGenerationProgress(100);
-          setUploadProgress("Loading model into scene...");
-
-          // Load the model using the existing function
-          if ((window as any).__LOAD_DYNAMIC_MODEL__) {
-            await (window as any).__LOAD_DYNAMIC_MODEL__(
-              statusData.model_urls.glb
-            );
-          }
-
-          setUploadProgress("✓ Model loaded successfully!");
-          setTimeout(() => {
-            setShowUploadModal(false);
-            setUploadProgress("");
-            setIsGenerating(false);
-            setGenerationProgress(0);
-            // Re-lock pointer
-            setTimeout(() => {
-              if (controlsRef.current) {
-                controlsRef.current.lock();
-              }
-            }, 100);
-          }, 2000);
-          return;
-        }
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate model");
       }
 
-      clearInterval(progressInterval);
-      throw new Error("Model generation timeout");
+      const data = await response.json();
+
+      if (data.status === "FAILED") {
+        throw new Error(data.task_error?.message || "Model generation failed");
+      }
+
+      if (data.status === "SUCCEEDED" && data.model_urls?.glb) {
+        setGenerationProgress(100);
+        setUploadProgress("Loading model into scene...");
+
+        // Load the model using the existing function
+        if ((window as any).__LOAD_DYNAMIC_MODEL__) {
+          await (window as any).__LOAD_DYNAMIC_MODEL__(data.model_urls.glb);
+        }
+
+        setUploadProgress("✓ Model loaded successfully!");
+        setTimeout(() => {
+          setShowUploadModal(false);
+          setUploadProgress("");
+          setIsGenerating(false);
+          setGenerationProgress(0);
+          // Re-lock pointer
+          setTimeout(() => {
+            if (controlsRef.current) {
+              controlsRef.current.lock();
+            }
+          }, 100);
+        }, 2000);
+      } else {
+        throw new Error("No GLB model URL in response");
+      }
     } catch (error) {
       console.error("Error generating model:", error);
       setUploadProgress(
@@ -1747,6 +1657,15 @@ export default function Scene({
 
   return (
     <>
+      {/* Home button overlay */}
+      <div className="fixed top-4 left-4 z-50">
+        <button
+          onClick={navigateHome}
+          className="px-3 py-2 rounded-md bg-white/80 hover:bg-white text-gray-800 shadow border border-gray-200 text-sm"
+        >
+          Home
+        </button>
+      </div>
       <div ref={containerRef} className="w-full h-screen" />
 
       {/* Loading Screen */}
@@ -1815,28 +1734,16 @@ export default function Scene({
                   <p>
                     <span className="font-semibold">I:</span> Inventory
                   </p>
-                  <p>
-                    <span className="font-semibold">H:</span> Home
-                  </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Home Link */}
-          <Link
-            href="/"
-            className="absolute top-4 left-4 z-40 bg-black/60 hover:bg-black/80 text-white text-sm font-medium px-3 py-1.5 rounded-full backdrop-blur"
-          >
-            ← Home
-          </Link>
-
           {/* Instructions at top */}
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
             <p className="text-white text-sm font-medium drop-shadow-lg">
-              WASD: Move • R/F: Up/Down • Space: Jump • Click: Shoot/Grab •
-              Arrows: Rotate • .: Launch • M: Debug • L: Whiteboard • U: Upload
-              • T: Text • I: Inventory • H: Home
+              WASD: Move • R/F: Up/Down • Space: Jump • Click: Shoot/Grab • Arrows: Rotate • .: Launch • M:
+              Debug • L: Whiteboard • U: Upload • T: Text • I: Inventory
             </p>
           </div>
 
@@ -1883,7 +1790,7 @@ export default function Scene({
 
       {/* Whiteboard */}
       {showWhiteboard && (
-        <Whiteboard
+        <Whiteboard 
           onClose={() => {
             setShowWhiteboard(false);
             // Re-lock pointer after closing
@@ -2070,7 +1977,14 @@ export default function Scene({
       {showInventory && (
         <Inventory
           items={inventoryItems}
-          onClose={handleInventoryClose}
+          onClose={() => {
+            setShowInventory(false);
+            setTimeout(() => {
+              if (controlsRef.current) {
+                controlsRef.current.lock();
+              }
+            }, 100);
+          }}
           onSelectItem={handleSelectItem}
         />
       )}
