@@ -24,11 +24,11 @@
     "isPreset": true
   },
   {
-    "id": "9f09b3a6-eb93-4183-bca5-3ad66875152e",
-    "name": "Chic Study Room",
-    "thumbnailUrl": "/cdn-proxy/9f09b3a6-eb93-4183-bca5-3ad66875152e/1c54fefa_image_prompt.png",
-    "splatUrl": "/cdn-proxy/9f09b3a6-eb93-4183-bca5-3ad66875152e/e18e9b67-9d58-4d4f-af1e-adc1417b9bfe_ceramic.ply",
-    "meshUrl": "/cdn-proxy/collider_meshes/9f09b3a6-eb93-4183-bca5-3ad66875152e_collider.glb",
+    "id": "9fb7c4f7-29fd-413e-99fe-ad82a597b986",
+    "name": "Yosemite Valley",
+    "thumbnailUrl": "/cdn-proxy/9fb7c4f7-29fd-413e-99fe-ad82a597b986/39062897_image_prompt.png",
+    "splatUrl": "/cdn-proxy/9fb7c4f7-29fd-413e-99fe-ad82a597b986/044baa04-eb6b-46d1-afab-1fcf15b144fc_ceramic.ply",
+    "meshUrl": "https://storage.googleapis.com/doodle-world-static/conversions/converted_20251004_212636.glb",
     "isPreset": true
   }
 ]
