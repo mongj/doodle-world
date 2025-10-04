@@ -99,36 +99,55 @@ export default function Whiteboard({
         body: JSON.stringify({ image_url: imageUrl }),
       });
 
-      clearInterval(progressInterval);
-
       const data = await response.json();
       if (!response.ok) {
+        clearInterval(progressInterval);
         throw new Error(data?.error || "Failed to create 3D model");
       }
 
-      console.log('Meshy result:', data);
+      console.log('Meshy task created:', data);
 
-      if (data.status === 'FAILED') {
-        throw new Error(data.task_error?.message || "Model generation failed");
-      }
-
-      if (data.status === 'SUCCEEDED' && data.model_urls?.glb) {
-        onGenerationProgress(100, "Loading model into scene...");
-
-        const loader = (window as any)?.__LOAD_DYNAMIC_MODEL__;
-        if (typeof loader === 'function') {
-          await loader(data.model_urls.glb);
-          onGenerationProgress(100, "✓ Model loaded successfully!");
-          
-          setTimeout(() => {
-            onGenerationComplete();
-          }, 2000);
-        } else {
-          throw new Error('Model loader unavailable');
+      // Now poll for completion (webhook updates the status file)
+      const maxTries = 120;
+      const delayMs = 3000;
+      
+      for (let i = 0; i < maxTries; i++) {
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        
+        const statusRes = await fetch("/api/whiteboard/status");
+        if (!statusRes.ok) continue;
+        
+        const statusData = await statusRes.json();
+        console.log('Status check:', statusData);
+        
+        if (statusData.status === 'FAILED') {
+          clearInterval(progressInterval);
+          const errorMsg = statusData.task_error?.message || "Model generation failed";
+          alert(`❌ Model Generation Failed\n\n${errorMsg}`);
+          throw new Error(errorMsg);
         }
-      } else {
-        throw new Error('No GLB model URL in response');
+        
+        if (statusData.status === 'SUCCEEDED' && statusData.model_urls?.glb) {
+          clearInterval(progressInterval);
+          onGenerationProgress(100, "Loading model into scene...");
+
+          const loader = (window as any)?.__LOAD_DYNAMIC_MODEL__;
+          if (typeof loader === 'function') {
+            await loader(statusData.model_urls.glb);
+            onGenerationProgress(100, "✓ Model loaded successfully!");
+            
+            setTimeout(() => {
+              onGenerationComplete();
+            }, 2000);
+            return;
+          } else {
+            throw new Error('Model loader unavailable');
+          }
+        }
       }
+      
+      clearInterval(progressInterval);
+      throw new Error('Model generation timeout');
     } catch (error) {
       console.error("Error creating 3D model:", error);
       onGenerationProgress(

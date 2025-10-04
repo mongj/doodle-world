@@ -4,10 +4,6 @@ import path from "path";
 
 const MESHY_API_KEY = process.env.MESHY_API_KEY;
 const CREATE_URL = process.env.MESHY_IMAGE_TO_3D_URL;
-const STATUS_TEMPLATE =
-  process.env.MESHY_JOB_STATUS_URL_TEMPLATE || `${CREATE_URL}/{id}`;
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function POST(request: NextRequest) {
   try {
@@ -56,41 +52,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Simple polling for status
-    const maxTries = 120; // ~600s at 5s/try
-    const delayMs = 5000;
-    for (let i = 0; i < maxTries; i++) {
-      const statusUrl = (STATUS_TEMPLATE || '').replace('{id}', id);
-      console.log(`[Meshy Poll] Attempt ${i + 1}/${maxTries} -> ${statusUrl}`);
-      const statusRes = await fetch(statusUrl, {
-        headers: { Authorization: `Bearer ${MESHY_API_KEY}` },
-      });
-      const statusJson = await statusRes.json();
+    // Initialize status file with PENDING status
+    const outputPath = path.join(process.cwd(), "meshy_status.json");
+    const initialStatus = {
+      id,
+      status: "PENDING",
+      progress: 0,
+      created_at: new Date().toISOString(),
+    };
+    fs.writeFileSync(outputPath, JSON.stringify(initialStatus, null, 2));
 
-      // Save statusJson to a local JSON file
-      const outputPath = path.join(process.cwd(), "meshy_status.json");
-      fs.writeFileSync(outputPath, JSON.stringify(statusJson, null, 2));
+    console.log(`[Meshy] Task created with ID: ${id}. Webhook will provide updates.`);
 
-      if (!statusRes.ok) {
-        return NextResponse.json(
-          { error: statusJson?.error || "Meshy status failed" },
-          { status: statusRes.status || 500 }
-        );
-      }
-
-      const status = statusJson?.status;
-      if (
-        status === "SUCCEEDED" ||
-        status === "FAILED" ||
-        status === "CANCELED"
-      ) {
-        return NextResponse.json(statusJson);
-      }
-
-      await sleep(delayMs);
-    }
-
-    return NextResponse.json({ id, status: "TIMEOUT" }, { status: 202 });
+    // Return the task ID immediately
+    // The webhook will update the status file when the task progresses/completes
+    return NextResponse.json({
+      id,
+      status: "PENDING",
+      message: "Task created. Status updates will be received via webhook.",
+    });
   } catch (error) {
     console.error("Error processing image:", error);
     return NextResponse.json(
