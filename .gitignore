@@ -2,4 +2,5 @@ node_modules/
 /dist/
 .DS_Store 
 public_extra/
-*.env
+*.envMiniconda3-latest-MacOSX-arm64.sh
+my-app/public/test.glb
