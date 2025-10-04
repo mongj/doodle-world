@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({ 
         image_url,
         ai_model: "latest",
+        moderation: false,
       }),
     });
 

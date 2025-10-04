@@ -314,11 +314,11 @@ export default function TavernScene() {
           if (newState) {
             controlsRef.current.unlock();
           } else {
-            setTimeout(() => {
-              if (controlsRef.current) {
-                controlsRef.current.lock();
-              }
-            }, 100);
+        setTimeout(() => {
+          if (controlsRef.current) {
+            controlsRef.current.lock();
+          }
+        }, 100);
           }
         }
       } else if (e.code === "KeyT") {
@@ -925,6 +925,11 @@ export default function TavernScene() {
       };
       let grabbed: { body: RAPIER.RigidBody | null; mesh: THREE.Mesh | null } =
         { body: null, mesh: null };
+      let grabbedRotationX = 0; // Pitch rotation
+      let grabbedRotationY = 0; // Yaw rotation
+      let grabbedRotationZ = 0; // Roll rotation
+      const ROTATION_SPEED = 0.05; // Radians per frame
+      const LAUNCH_SPEED = 15 * GLOBAL_SCALE;
 
       const handleKeyDown = (e: KeyboardEvent) => {
         keyState[e.code] = true;
@@ -942,6 +947,23 @@ export default function TavernScene() {
               true
             );
           }
+        }
+
+        // Launch grabbed object with period key
+        if (e.code === "Period" && grabbed.body) {
+          const forward = new THREE.Vector3();
+          camera.getWorldDirection(forward);
+          forward.normalize();
+          const launchVelocity = forward.multiplyScalar(LAUNCH_SPEED);
+          grabbed.body.setLinvel(
+            { x: launchVelocity.x, y: launchVelocity.y, z: launchVelocity.z },
+            true
+          );
+          grabbed = { body: null, mesh: null };
+          grabbedRotationX = 0;
+          grabbedRotationY = 0;
+          grabbedRotationZ = 0;
+          console.log("Object launched!");
         }
 
         if (e.code === "KeyP") {
@@ -977,10 +999,16 @@ export default function TavernScene() {
         if (!controls.isLocked) return;
         if (grabbed.body) {
           grabbed = { body: null, mesh: null };
+          grabbedRotationX = 0;
+          grabbedRotationY = 0;
+          grabbedRotationZ = 0;
           return;
         }
         if (hover.body && hover.mesh) {
           grabbed = { body: hover.body, mesh: hover.mesh };
+          grabbedRotationX = 0;
+          grabbedRotationY = 0;
+          grabbedRotationZ = 0;
           return;
         }
         shootProjectile();
@@ -1259,6 +1287,29 @@ export default function TavernScene() {
 
           if (grabbed.body && mounted) {
             try {
+              // Handle arrow key rotation
+              let rotated = false;
+              if (keyState.ArrowUp) {
+                grabbedRotationX += ROTATION_SPEED;
+                rotated = true;
+              }
+              if (keyState.ArrowDown) {
+                grabbedRotationX -= ROTATION_SPEED;
+                rotated = true;
+              }
+              if (keyState.ArrowLeft) {
+                grabbedRotationY += ROTATION_SPEED;
+                rotated = true;
+              }
+              if (keyState.ArrowRight) {
+                grabbedRotationY -= ROTATION_SPEED;
+                rotated = true;
+              }
+              
+              if (rotated && i === 0) {
+                console.log(`Rotation: X=${grabbedRotationX.toFixed(2)}, Y=${grabbedRotationY.toFixed(2)}`);
+              }
+
               const forward = new THREE.Vector3();
               camera.getWorldDirection(forward);
               forward.normalize();
@@ -1272,24 +1323,12 @@ export default function TavernScene() {
                 true
               );
 
-              const yawForward = new THREE.Vector3(forward.x, 0, forward.z);
-              if (yawForward.lengthSq() < 1e-6) yawForward.set(0, 0, 1);
-              yawForward.normalize();
-              const up = new THREE.Vector3(0, 1, 0);
-              const right = new THREE.Vector3()
-                .crossVectors(up, yawForward)
-                .normalize();
-              const trueUp = new THREE.Vector3()
-                .crossVectors(yawForward, right)
-                .normalize();
-              const basis = new THREE.Matrix4().makeBasis(
-                right,
-                trueUp,
-                yawForward
-              );
-              const q = new THREE.Quaternion().setFromRotationMatrix(basis);
+              // Apply rotation using Euler angles
+              const euler = new THREE.Euler(grabbedRotationX, grabbedRotationY, grabbedRotationZ, 'XYZ');
+              const rotation = new THREE.Quaternion().setFromEuler(euler);
+              
               grabbed.body.setRotation(
-                { x: q.x, y: q.y, z: q.z, w: q.w },
+                { x: rotation.x, y: rotation.y, z: rotation.z, w: rotation.w },
                 true
               );
             } catch {
@@ -1749,6 +1788,12 @@ export default function TavernScene() {
                     <span className="font-semibold">Click:</span> Shoot/Grab
                   </p>
                   <p>
+                    <span className="font-semibold">Arrows:</span> Rotate
+                  </p>
+                  <p>
+                    <span className="font-semibold">Period:</span> Launch
+                  </p>
+                  <p>
                     <span className="font-semibold">M:</span> Debug
                   </p>
                   <p>
@@ -1768,7 +1813,7 @@ export default function TavernScene() {
           {/* Instructions at top */}
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
             <p className="text-white text-sm font-medium drop-shadow-lg">
-              WASD: Move • R/F: Up/Down • Space: Jump • Click: Shoot/Grab • M:
+              WASD: Move • R/F: Up/Down • Space: Jump • Click: Shoot/Grab • Arrows: Rotate • .: Launch • M:
               Debug • L: Whiteboard • U: Upload • T: Text
             </p>
           </div>

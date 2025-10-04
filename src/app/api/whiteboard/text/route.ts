@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
         preview_task_id,
         enable_pbr,
         should_remesh: true,
+        moderation: false,
       }),
     });
 
