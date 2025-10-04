@@ -538,9 +538,8 @@ export default function Home() {
                       </svg>
                       <label className="cursor-pointer">
                         <span className="text-purple-600 font-semibold hover:text-purple-700">
-                          Click to upload
+                          Click to upload a reference image
                         </span>
-                        <span className="text-gray-500"> or drag and drop</span>
                         <input
                           type="file"
                           accept="image/*"
