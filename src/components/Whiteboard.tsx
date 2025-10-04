@@ -72,7 +72,7 @@ export default function Whiteboard({
         reader.readAsDataURL(imageResult.blob);
       });
 
-      onGenerationProgress(5, "Sending to Meshy AI...");
+      onGenerationProgress(5, "Generating your creation...");
 
       const response = await fetch("/api/whiteboard/send", {
         method: "POST",

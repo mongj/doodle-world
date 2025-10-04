@@ -1753,7 +1753,7 @@ export default function TavernScene() {
       reader.readAsDataURL(file);
       const dataUri = await base64Promise;
 
-      setUploadProgress("Sending to Meshy AI...");
+      setUploadProgress("Generating your creation...");
       setGenerationProgress(5);
 
       // Send to backend API - returns immediately with task ID
