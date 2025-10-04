@@ -21,6 +21,7 @@ import type { InventoryItem } from "./Inventory";
 interface SceneProps {
   meshUrl: string;
   splatUrl: string;
+  backgroundMusic?: string;
 }
 
 const GLOBAL_SCALE = 0.7;
@@ -151,14 +152,23 @@ function playAudio(
   return source;
 }
 
-export default function Scene({ meshUrl, splatUrl }: SceneProps) {
-  console.log("rendering scene:", { meshUrl: meshUrl, splatUrl: splatUrl });
+export default function Scene({
+  meshUrl,
+  splatUrl,
+  backgroundMusic,
+}: SceneProps) {
+  console.log("rendering scene:", {
+    meshUrl: meshUrl,
+    splatUrl: splatUrl,
+    backgroundMusic: backgroundMusic,
+  });
   const containerRef = useRef<HTMLDivElement>(null);
   const reticleRef = useRef<HTMLDivElement>(null);
   const startButtonRef = useRef<HTMLDivElement>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const controlsRef = useRef<PointerLockControls | null>(null);
   const gameStartedRef = useRef(false);
+  const backgroundMusicRef = useRef<HTMLAudioElement | null>(null);
   const [showUI, setShowUI] = useState(false);
   const [showWhiteboard, setShowWhiteboard] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -225,6 +235,51 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
   useEffect(() => {
     setShowUI(true);
   }, []);
+
+  // Initialize background music
+  useEffect(() => {
+    console.log(
+      "[Background Music] useEffect triggered, backgroundMusic:",
+      backgroundMusic
+    );
+    if (backgroundMusic) {
+      console.log(
+        "[Background Music] Creating audio element for:",
+        backgroundMusic
+      );
+      const audio = new Audio(backgroundMusic);
+      audio.loop = true;
+      audio.volume = 0.3; // Set to 30% volume so it doesn't overpower
+      backgroundMusicRef.current = audio;
+
+      // Add event listeners for debugging
+      audio.addEventListener("canplay", () => {
+        console.log(
+          "[Background Music] Audio can play, ready state:",
+          audio.readyState
+        );
+      });
+      audio.addEventListener("loadeddata", () => {
+        console.log("[Background Music] Audio data loaded");
+      });
+      audio.addEventListener("error", (e) => {
+        console.error("[Background Music] Audio error:", e, audio.error);
+      });
+
+      console.log("[Background Music] Audio element created successfully");
+
+      return () => {
+        // Cleanup on unmount
+        console.log("[Background Music] Cleaning up audio element");
+        if (backgroundMusicRef.current) {
+          backgroundMusicRef.current.pause();
+          backgroundMusicRef.current = null;
+        }
+      };
+    } else {
+      console.log("[Background Music] No background music provided");
+    }
+  }, [backgroundMusic]);
 
   useEffect(() => {
     const handleWhiteboardShortcut = (e: KeyboardEvent) => {
@@ -355,40 +410,6 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
 
     let mounted = true;
     const container = containerRef.current;
-
-    // Cache mesh files using Cache API for persistence across sessions
-    async function loadMeshWithCache(url: string): Promise<string> {
-      try {
-        const cacheName = "doodle-world-meshes-v1";
-        const cache = await caches.open(cacheName);
-
-        // Check if we have this mesh cached
-        const cachedResponse = await cache.match(url);
-
-        if (cachedResponse) {
-          console.log("✓ Loading mesh from cache:", url);
-          // Return the original URL - THREE.js will use browser cache
-          return url;
-        }
-
-        console.log("→ Downloading mesh (will be cached):", url);
-        // Fetch and cache the mesh
-        const response = await fetch(url);
-        if (response.ok) {
-          // Clone the response before caching (can only read once)
-          await cache.put(url, response.clone());
-          console.log("✓ Mesh cached successfully");
-        }
-
-        return url;
-      } catch (error) {
-        console.warn(
-          "Cache API not available or error, loading directly:",
-          error
-        );
-        return url;
-      }
-    }
 
     async function initScene() {
       try {
@@ -542,10 +563,47 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
       ).__TAVERN_CONTROLS__ = controls;
 
       controls.addEventListener("lock", () => {
+        console.log("[Background Music] Controls locked, game starting");
         gameStartedRef.current = true;
         if (reticleRef.current) reticleRef.current.style.display = "block";
         if (startButtonRef.current)
           startButtonRef.current.style.display = "none";
+
+        // Start background music when user starts exploring
+        console.log(
+          "[Background Music] Checking if audio ref exists:",
+          !!backgroundMusicRef.current
+        );
+        if (backgroundMusicRef.current) {
+          console.log("[Background Music] Attempting to play audio...");
+          console.log(
+            "[Background Music] Audio state - paused:",
+            backgroundMusicRef.current.paused,
+            "readyState:",
+            backgroundMusicRef.current.readyState,
+            "src:",
+            backgroundMusicRef.current.src
+          );
+          backgroundMusicRef.current
+            .play()
+            .then(() => {
+              console.log("[Background Music] ✓ Audio playing successfully");
+            })
+            .catch((error) => {
+              console.error(
+                "[Background Music] ✗ Failed to play audio:",
+                error
+              );
+              console.error("[Background Music] Error details:", {
+                name: error.name,
+                message: error.message,
+                audioSrc: backgroundMusicRef.current?.src,
+                audioReadyState: backgroundMusicRef.current?.readyState,
+              });
+            });
+        } else {
+          console.log("[Background Music] No audio element in ref");
+        }
       });
       controls.addEventListener("unlock", () => {
         if (reticleRef.current) reticleRef.current.style.display = "none";
@@ -640,10 +698,7 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
       const gltfLoader = new GLTFLoader();
       setLoadingMessage("Loading collision mesh...");
 
-      // Try to load from cache first, then fallback to network
-      const cachedMeshUrl = await loadMeshWithCache(meshUrl);
-
-      gltfLoader.load(cachedMeshUrl, (gltf) => {
+      gltfLoader.load(meshUrl, (gltf) => {
         environment = gltf.scene;
         environment.scale.set(-1, -1, 1);
         environment.rotation.set(
@@ -858,35 +913,6 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
       }
 
       (window as any).__LOAD_DYNAMIC_MODEL__ = loadDynamicModel;
-
-      // Expose cache management functions for debugging
-      (window as any).__CLEAR_MESH_CACHE__ = async () => {
-        try {
-          const cacheName = "doodle-world-meshes-v1";
-          const deleted = await caches.delete(cacheName);
-          console.log(deleted ? "✓ Mesh cache cleared" : "⚠ No cache to clear");
-          return deleted;
-        } catch (error) {
-          console.error("Error clearing cache:", error);
-          return false;
-        }
-      };
-
-      (window as any).__LIST_CACHED_MESHES__ = async () => {
-        try {
-          const cacheName = "doodle-world-meshes-v1";
-          const cache = await caches.open(cacheName);
-          const requests = await cache.keys();
-          console.log(
-            `Cached meshes (${requests.length}):`,
-            requests.map((r) => r.url)
-          );
-          return requests.map((r) => r.url);
-        } catch (error) {
-          console.error("Error listing cache:", error);
-          return [];
-        }
-      };
 
       // Input handling
       const keyState: Record<string, boolean> = {};
@@ -1235,9 +1261,13 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
                 grabbedRotationY -= ROTATION_SPEED;
                 rotated = true;
               }
-              
+
               if (rotated && i === 0) {
-                console.log(`Rotation: X=${grabbedRotationX.toFixed(2)}, Y=${grabbedRotationY.toFixed(2)}`);
+                console.log(
+                  `Rotation: X=${grabbedRotationX.toFixed(
+                    2
+                  )}, Y=${grabbedRotationY.toFixed(2)}`
+                );
               }
 
               const forward = new THREE.Vector3();
@@ -1254,9 +1284,14 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
               );
 
               // Apply rotation using Euler angles
-              const euler = new THREE.Euler(grabbedRotationX, grabbedRotationY, grabbedRotationZ, 'XYZ');
+              const euler = new THREE.Euler(
+                grabbedRotationX,
+                grabbedRotationY,
+                grabbedRotationZ,
+                "XYZ"
+              );
               const rotation = new THREE.Quaternion().setFromEuler(euler);
-              
+
               grabbed.body.setRotation(
                 { x: rotation.x, y: rotation.y, z: rotation.z, w: rotation.w },
                 true
@@ -1347,6 +1382,12 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
         window.removeEventListener("keydown", handleKeyDown);
         window.removeEventListener("keyup", handleKeyUp);
         window.removeEventListener("resize", handleResize);
+
+        // Stop background music
+        if (backgroundMusicRef.current) {
+          console.log("[Background Music] Pausing audio in cleanup");
+          backgroundMusicRef.current.pause();
+        }
 
         // Dispose physics world
         try {
@@ -1793,8 +1834,9 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
           {/* Instructions at top */}
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
             <p className="text-white text-sm font-medium drop-shadow-lg">
-              WASD: Move • R/F: Up/Down • Space: Jump • Click: Shoot/Grab • Arrows: Rotate • .: Launch • M:
-              Debug • L: Whiteboard • U: Upload • T: Text • I: Inventory • H: Home
+              WASD: Move • R/F: Up/Down • Space: Jump • Click: Shoot/Grab •
+              Arrows: Rotate • .: Launch • M: Debug • L: Whiteboard • U: Upload
+              • T: Text • I: Inventory • H: Home
             </p>
           </div>
 
@@ -1841,7 +1883,7 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
 
       {/* Whiteboard */}
       {showWhiteboard && (
-        <Whiteboard 
+        <Whiteboard
           onClose={() => {
             setShowWhiteboard(false);
             // Re-lock pointer after closing

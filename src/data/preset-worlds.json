@@ -5,6 +5,7 @@
     "thumbnailUrl": "cdn-proxy/1f8d7af4-abd5-4272-9682-8e188e3f844c/8605a23f_image_prompt.png",
     "splatUrl": "/cdn-proxy/1f8d7af4-abd5-4272-9682-8e188e3f844c/1a72da9b-28a9-4542-9420-47767f170bdd_ceramic.ply",
     "meshUrl": "/cdn-proxy/collider_meshes/1f8d7af4-abd5-4272-9682-8e188e3f844c_collider.glb",
+    "backgroundMusic": "/fantasy_village.mp3",
     "isPreset": true
   },
   {
@@ -13,6 +14,7 @@
     "thumbnailUrl": "/cdn-proxy/a234aac5-5dd4-404f-8dd0-f97146d771d6/217b0d9e_image_prompt.jpg",
     "splatUrl": "/cdn-proxy/a234aac5-5dd4-404f-8dd0-f97146d771d6/9dd0894a-1b04-4588-8bda-79b02745c426_ceramic.ply",
     "meshUrl": "/cdn-proxy/collider_meshes/a234aac5-5dd4-404f-8dd0-f97146d771d6_collider.glb",
+    "backgroundMusic": "/christmas.mp3",
     "isPreset": true
   },
   {
@@ -21,6 +23,7 @@
     "thumbnailUrl": "/cdn-proxy/134f001d-8172-4348-9f3b-4e3062f74837/9b7b6102_image_prompt.png",
     "splatUrl": "/cdn-proxy/134f001d-8172-4348-9f3b-4e3062f74837/0cdbfdf4-59a9-4195-af13-49b179b353a1_ceramic.ply",
     "meshUrl": "/cdn-proxy/collider_meshes/134f001d-8172-4348-9f3b-4e3062f74837_collider.glb",
+    "backgroundMusic": "/atlantis.mp3",
     "isPreset": true
   },
   {
@@ -29,6 +32,7 @@
     "thumbnailUrl": "/cdn-proxy/9fb7c4f7-29fd-413e-99fe-ad82a597b986/39062897_image_prompt.png",
     "splatUrl": "/cdn-proxy/9fb7c4f7-29fd-413e-99fe-ad82a597b986/044baa04-eb6b-46d1-afab-1fcf15b144fc_ceramic.ply",
     "meshUrl": "https://storage.googleapis.com/doodle-world-static/conversions/converted_20251004_212636.glb",
+    "backgroundMusic": "/yosemite.mp3",
     "isPreset": true
   }
 ]
