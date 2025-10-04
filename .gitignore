@@ -44,3 +44,5 @@ meshy_status.json
 
 # job storage
 /jobs
+
+*.jpg
