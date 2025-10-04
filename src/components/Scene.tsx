@@ -193,8 +193,31 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
 
   // Inventory items - easily extensible for future generated models
   const inventoryItems: InventoryItem[] = [
-    // Add preloaded model URLs here
-    // Example: { id: "cube", name: "Cube", modelUrl: "/models/cube.glb" }
+    {
+      id: "orc",
+      name: "Orc",
+      modelUrl: "orc.glb",
+    },
+    {
+      id: "doggy",
+      name: "Doggy",
+      modelUrl: "/assets/doggy.glb",
+    },
+    {
+      id: "dragon",
+      name: "Dragon",
+      modelUrl: "/assets/dragon.glb",
+    },
+    {
+      id: "furry",
+      name: "Furry",
+      modelUrl: "/assets/furry.glb",
+    },
+    {
+      id: "peter-dink",
+      name: "Peter Dink",
+      modelUrl: "/assets/peter dink.glb",
+    },
   ];
 
   useEffect(() => {
@@ -1292,6 +1315,15 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
     }
   };
 
+  const handleInventoryClose = () => {
+    setShowInventory(false);
+    setTimeout(() => {
+      if (controlsRef.current) {
+        controlsRef.current.lock();
+      }
+    }, 100);
+  };
+
   const handleTextToModel = async (
     prompt: string,
     artStyle: string = "realistic"
@@ -1886,14 +1918,7 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
       {showInventory && (
         <Inventory
           items={inventoryItems}
-          onClose={() => {
-            setShowInventory(false);
-            setTimeout(() => {
-              if (controlsRef.current) {
-                controlsRef.current.lock();
-              }
-            }, 100);
-          }}
+          onClose={handleInventoryClose}
           onSelectItem={handleSelectItem}
         />
       )}

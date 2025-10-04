@@ -5,7 +5,7 @@
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
@@ -16,6 +16,35 @@ const Whiteboard = dynamic(() => import("./Whiteboard"), { ssr: false });
 const Inventory = dynamic(() => import("./Inventory"), { ssr: false });
 
 import type { InventoryItem } from "./Inventory";
+
+// Define inventory items outside component to prevent re-creation on every render
+const INVENTORY_ITEMS: InventoryItem[] = [
+  {
+    id: "orc",
+    name: "Orc",
+    modelUrl: "orc.glb",
+  },
+  {
+    id: "doggy",
+    name: "Doggy",
+    modelUrl: "/assets/doggy.glb",
+  },
+  {
+    id: "dragon",
+    name: "Dragon",
+    modelUrl: "/assets/dragon.glb",
+  },
+  {
+    id: "furry",
+    name: "Furry",
+    modelUrl: "/assets/furry.glb",
+  },
+  {
+    id: "peter-dink",
+    name: "Peter Dink",
+    modelUrl: "/assets/peter dink.glb",
+  },
+];
 
 const GLOBAL_SCALE = 0.7;
 
@@ -93,6 +122,7 @@ const PROJECTILE_SPAWN_OFFSET =
 const FIXED_TIME_STEP = 1 / 60;
 const MAX_SUBSTEPS = 5;
 const DYNAMIC_MODEL_SCALE = 0.5;
+const MAX_COLLIDER_VERTICES = 5000; // Skip colliders for meshes with more vertices than this
 
 // Utility functions
 function setupMaterialsForLighting(
@@ -251,16 +281,6 @@ export default function TavernScene() {
     )} rad)`;
 
   const formatPosition = (value: number) => value.toFixed(3);
-
-  // Inventory items - easily extensible for future generated models
-  const inventoryItems: InventoryItem[] = [
-    {
-      id: "orc",
-      name: "Orc",
-      modelUrl: CONFIG.CHARACTERS.ORC.MODEL,
-    },
-    // Add more items here as needed
-  ];
 
   useEffect(() => {
     setShowUI(true);
@@ -1504,13 +1524,13 @@ export default function TavernScene() {
     };
   }, []);
 
-  const handleStartClick = () => {
+  const handleStartClick = useCallback(() => {
     if (controlsRef.current) {
       controlsRef.current.lock();
     }
-  };
+  }, []);
 
-  const handleSelectItem = async (item: InventoryItem) => {
+  const handleSelectItem = useCallback(async (item: InventoryItem) => {
     try {
       // Load the model dynamically using the global function
       if ((window as any).__LOAD_DYNAMIC_MODEL__) {
@@ -1522,7 +1542,16 @@ export default function TavernScene() {
     } catch (error) {
       console.error(`Error spawning ${item.name}:`, error);
     }
-  };
+  }, []);
+
+  const handleInventoryClose = useCallback(() => {
+    setShowInventory(false);
+    setTimeout(() => {
+      if (controlsRef.current) {
+        controlsRef.current.lock();
+      }
+    }, 100);
+  }, []);
 
   const handleTextToModel = async (
     prompt: string,
@@ -2114,15 +2143,8 @@ export default function TavernScene() {
       {/* Inventory */}
       {showInventory && (
         <Inventory
-          items={inventoryItems}
-          onClose={() => {
-            setShowInventory(false);
-            setTimeout(() => {
-              if (controlsRef.current) {
-                controlsRef.current.lock();
-              }
-            }, 100);
-          }}
+          items={INVENTORY_ITEMS}
+          onClose={handleInventoryClose}
           onSelectItem={handleSelectItem}
         />
       )}
