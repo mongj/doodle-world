@@ -1,5 +1,33 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Environment Variables
+
+Create a `.env.local` file in the root directory with the following variables:
+
+```env
+# Meshy AI API (Primary 3D generation service)
+MESHY_API_KEY=your_meshy_api_key
+MESHY_IMAGE_TO_3D_URL=https://api.meshy.ai/v2/image-to-3d
+MESHY_JOB_STATUS_URL_TEMPLATE=https://api.meshy.ai/v2/image-to-3d/{id}
+
+# Gemini API (Image enhancement - optional)
+GEMINI_API_KEY=your_gemini_api_key
+
+# Tripo3D API (Fallback 3D generation service - optional)
+# If Meshy doesn't complete within 2 minutes, automatically fallbacks to Tripo3D
+TRIPO3D_API_KEY=your_tripo3d_api_key
+```
+
+### API Keys
+
+- **Meshy AI**: Get your API key at [https://www.meshy.ai/](https://www.meshy.ai/)
+- **Gemini**: Get your API key at [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+- **Tripo3D**: Get your API key at [https://platform.tripo3d.ai/](https://platform.tripo3d.ai/)
+
+### Fallback Logic
+
+The system uses Meshy AI as the primary 3D generation service. If Meshy doesn't complete within 2 minutes, it automatically falls back to Tripo3D (if configured). This ensures your models are always generated even if one service is slow or unavailable.
+
 ## Getting Started
 
 First, run the development server:

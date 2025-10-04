@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const ALLOWED_HOSTS = new Set(['assets.meshy.ai']);
+const ALLOWED_HOSTS = new Set([
+  'assets.meshy.ai',
+  'tripo-data.rg1.data.tripo3d.com'
+]);
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);

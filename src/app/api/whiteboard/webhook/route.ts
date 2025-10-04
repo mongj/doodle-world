@@ -47,6 +47,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Check if this task has been switched to Tripo3D
+    if (statusData.switched_to_tripo3d) {
+      console.log(`[Meshy Webhook] Task ${taskId} has been switched to Tripo3D, ignoring Meshy webhook update`);
+      return NextResponse.json({ 
+        success: true, 
+        message: "Task switched to Tripo3D, webhook ignored" 
+      }, { status: 200 });
+    }
+
     // Update with new data from webhook
     statusData = {
       ...statusData,
