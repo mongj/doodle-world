@@ -273,6 +273,30 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="px-8 pb-20">
+        {/* Create Button on Top */}
+        <div className="max-w-7xl mx-auto mb-8">
+          <button
+        onClick={() => setIsDialogOpen(true)}
+        className="w-full bg-gradient-to-br from-purple-400 to-purple-500 rounded-3xl p-8 shadow-lg hover:shadow-xl hover:scale-[1.01] transition-all cursor-pointer"
+          >
+        <div className="bg-white rounded-2xl p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+            ✨ Create Your Own World
+            </h2>
+          <p className="text-gray-600">
+            Generate custom 3D environments from your own images and imagination
+          </p>
+        </div>
+          </button>
+        </div>
+
+        {/* OR Divider */}
+        <div className="max-w-7xl mx-auto flex items-center gap-4 my-8">
+          <div className="h-px bg-gray-300 flex-1"></div>
+          <span className="text-gray-500 text-sm tracking-wide"> OR </span>
+          <div className="h-px bg-gray-300 flex-1"></div>
+        </div>
+
         {/* Worlds Grid */}
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
           {worlds.map((world, index) => {
@@ -323,22 +347,6 @@ export default function Home() {
               </Link>
             );
           })}
-
-          {/* Create Your Own World Card */}
-          <button
-            onClick={() => setIsDialogOpen(true)}
-            className="bg-gradient-to-br from-purple-400 to-purple-500 rounded-3xl p-8 shadow-lg hover:shadow-xl hover:scale-105 transition-all cursor-pointer"
-          >
-            <div className="bg-white rounded-2xl p-6 mb-4">
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                ✨ Create Your Own World
-              </h2>
-              <p className="text-gray-600">
-                Generate custom 3D environments from your own images and
-                imagination
-              </p>
-            </div>
-          </button>
         </div>
 
         {/* Jobs Section */}
