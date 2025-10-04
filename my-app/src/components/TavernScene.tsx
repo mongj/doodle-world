@@ -1,12 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import * as THREE from 'three';
 import * as RAPIER from '@dimforge/rapier3d-compat';
 import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+const Whiteboard = dynamic(() => import('./Whiteboard'), { ssr: false });
 
 const GLOBAL_SCALE = 0.7;
 
@@ -192,10 +195,45 @@ export default function TavernScene() {
   const cleanupRef = useRef<(() => void) | null>(null);
   const controlsRef = useRef<PointerLockControls | null>(null);
   const [showUI, setShowUI] = useState(false);
+  const [showWhiteboard, setShowWhiteboard] = useState(false);
 
   useEffect(() => {
     setShowUI(true);
   }, []);
+
+  useEffect(() => {
+    const handleWhiteboardShortcut = (e: KeyboardEvent) => {
+      if (e.code === 'KeyL') {
+        const newState = !showWhiteboard;
+        setShowWhiteboard(newState);
+
+        // Unlock pointer when opening whiteboard, lock when closing
+        if (controlsRef.current) {
+          if (newState) {
+            controlsRef.current.unlock();
+          } else {
+            // Re-lock pointer when closing whiteboard
+            setTimeout(() => {
+              if (controlsRef.current) {
+                controlsRef.current.lock();
+              }
+            }, 100);
+          }
+        }
+      } else if (e.code === 'Escape' && showWhiteboard) {
+        setShowWhiteboard(false);
+        // Re-lock pointer after closing with ESC
+        setTimeout(() => {
+          if (controlsRef.current) {
+            controlsRef.current.lock();
+          }
+        }, 100);
+      }
+    };
+
+    window.addEventListener('keydown', handleWhiteboardShortcut);
+    return () => window.removeEventListener('keydown', handleWhiteboardShortcut);
+  }, [showWhiteboard]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -330,6 +368,7 @@ export default function TavernScene() {
 
       const controls = new PointerLockControls(camera, renderer.domElement);
       controlsRef.current = controls;
+      (window as any).__TAVERN_CONTROLS__ = controls;
 
       controls.addEventListener('lock', () => {
         if (reticleRef.current) reticleRef.current.style.display = 'block';
@@ -944,7 +983,7 @@ export default function TavernScene() {
               <div className="text-white text-sm space-y-2 max-w-md mx-auto">
                 <p className="font-semibold">Controls:</p>
                 <p>WASD: Move • R/F: Up/Down • Space: Jump</p>
-                <p>Click: Shoot/Grab • M: Debug Mode • P: Print Position</p>
+                <p>Click: Shoot/Grab • M: Debug • P: Position • L: Whiteboard</p>
               </div>
             </div>
           </div>
@@ -966,6 +1005,9 @@ export default function TavernScene() {
           />
         </>
       )}
+
+      {/* Whiteboard */}
+      {showWhiteboard && <Whiteboard onClose={() => setShowWhiteboard(false)} />}
     </>
   );
 }
