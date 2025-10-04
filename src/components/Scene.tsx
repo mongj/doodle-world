@@ -1603,7 +1603,21 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
 
       {/* Whiteboard */}
       {showWhiteboard && (
-        <Whiteboard onClose={() => setShowWhiteboard(false)} />
+        <Whiteboard
+          onClose={() => setShowWhiteboard(false)}
+          onGenerationStart={() => {
+            setGenerationProgress(0);
+            setUploadProgress("Starting generation...");
+          }}
+          onGenerationProgress={(progress: number, message: string) => {
+            setGenerationProgress(progress);
+            setUploadProgress(message);
+          }}
+          onGenerationComplete={() => {
+            setGenerationProgress(0);
+            setUploadProgress("");
+          }}
+        />
       )}
 
       {/* Upload Modal */}

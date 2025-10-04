@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -72,12 +73,12 @@ export default function WorldPage() {
             Error Loading World
           </h1>
           <p className="text-gray-400 mb-6">{error || "World not found"}</p>
-          <a
+          <Link
             href="/"
             className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-6 rounded-lg transition-colors inline-block"
           >
             Go Back Home
-          </a>
+          </Link>
         </div>
       </div>
     );
