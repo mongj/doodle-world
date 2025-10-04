@@ -44,23 +44,26 @@ export default function Whiteboard({ onClose }: WhiteboardProps) {
         padding: 10,
       });
 
-      // Create FormData to send the blob
-      const formData = new FormData();
-      formData.append('image', imageResult.blob, 'whiteboard.png');
-
-      // Placeholder API call
-      const response = await fetch('/api/whiteboard/send', {
-        method: 'POST',
-        body: formData,
+      // Convert blob to base64 data URL for transport
+      const imageUrl: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(imageResult.blob);
       });
 
-      if (response.ok) {
-        console.log('Image sent successfully!');
-        alert('Image sent successfully!');
-      } else {
-        console.error('Failed to send image');
-        alert('Failed to send image');
-      }
+      const response = await fetch('/api/whiteboard/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_url: imageUrl }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || 'Request failed');
+
+      console.log('Meshy result:', data);
+      const status = data?.status || 'UNKNOWN';
+      alert(status === 'SUCCEEDED' ? '3D model ready!' : `Status: ${status}`);
     } catch (error) {
       console.error('Error sending image:', error);
       alert('Error sending image');
