@@ -13,6 +13,15 @@ export default function Whiteboard({ onClose }: WhiteboardProps) {
   const [isSending, setIsSending] = useState(false);
   const [isLoadingModel, setIsLoadingModel] = useState(false);
 
+  const handleEditorMount = (instance: Editor) => {
+    setEditor(instance);
+    try {
+      instance.setCurrentTool('draw');
+    } catch (error) {
+      console.warn('Failed to set default tool to draw:', error);
+    }
+  };
+
   useEffect(() => {
     // Exit pointer lock if active
     if (document.pointerLockElement) {
@@ -134,7 +143,7 @@ export default function Whiteboard({ onClose }: WhiteboardProps) {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <Tldraw onMount={setEditor} />
+        <Tldraw onMount={handleEditorMount} />
         <button
           onClick={handleSendImage}
           disabled={isSending || isLoadingModel || !editor}
