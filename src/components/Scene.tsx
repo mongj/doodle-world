@@ -6,6 +6,7 @@ import { isMarbleMeshUrl } from "@/utils/cdn-proxy";
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
@@ -334,6 +335,13 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
             }, 100);
           }
         }
+      } else if (e.code === "KeyH") {
+        try {
+          if (controlsRef.current) {
+            controlsRef.current.unlock();
+          }
+        } catch {}
+        window.location.href = "/";
       }
     };
 
@@ -1746,16 +1754,27 @@ export default function Scene({ meshUrl, splatUrl }: SceneProps) {
                   <p>
                     <span className="font-semibold">I:</span> Inventory
                   </p>
+                  <p>
+                    <span className="font-semibold">H:</span> Home
+                  </p>
                 </div>
               </div>
             </div>
           </div>
 
+          {/* Home Link */}
+          <Link
+            href="/"
+            className="absolute top-4 left-4 z-40 bg-black/60 hover:bg-black/80 text-white text-sm font-medium px-3 py-1.5 rounded-full backdrop-blur"
+          >
+            ← Home
+          </Link>
+
           {/* Instructions at top */}
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
             <p className="text-white text-sm font-medium drop-shadow-lg">
               WASD: Move • R/F: Up/Down • Space: Jump • Click: Shoot/Grab • Arrows: Rotate • .: Launch • M:
-              Debug • L: Whiteboard • U: Upload • T: Text • I: Inventory
+              Debug • L: Whiteboard • U: Upload • T: Text • I: Inventory • H: Home
             </p>
           </div>
 
