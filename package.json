@@ -1,0 +1,19 @@
+{
+  "name": "three-rapier-room",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.12.0",
+    "@sparkjsdev/spark": "^0.1.2",
+    "three": "^0.174.0"
+  },
+  "devDependencies": {
+    "vite": "^4.5.0"
+  }
+}
