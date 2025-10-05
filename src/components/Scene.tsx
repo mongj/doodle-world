@@ -68,7 +68,7 @@ const PROJECTILE_SPAWN_OFFSET =
   PLAYER_RADIUS + CONFIG.PROJECTILE_RADIUS + 0.15 * GLOBAL_SCALE;
 const FIXED_TIME_STEP = 1 / 60;
 const MAX_SUBSTEPS = 5;
-const DYNAMIC_MODEL_SCALE = 0.5;
+const DYNAMIC_MODEL_SCALE = 1.0;
 
 // Utility functions
 function setupMaterialsForLighting(
