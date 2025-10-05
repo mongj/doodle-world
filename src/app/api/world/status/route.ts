@@ -1,6 +1,6 @@
 import { proxify } from "@/utils/cdn-proxy";
-import { NextRequest, NextResponse } from "next/server";
 import { getStorage } from "@/utils/gcs";
+import { NextRequest, NextResponse } from "next/server";
 
 const API_BASE_URL = "https://marble2-kgw-prod-iac1.wlt-ai.art/api/v1";
 const BEARER_TOKEN = process.env.MARBLE_API_TOKEN;
@@ -157,7 +157,7 @@ export async function GET(request: NextRequest) {
         body: JSON.stringify({
           prompt: musicPrompt,
         }),
-        })
+      })
         .then(async (musicResponse) => {
           const musicResult = await musicResponse.json();
 
@@ -195,16 +195,27 @@ export async function GET(request: NextRequest) {
     });
 
     // Return status info with proxied CDN URLs
-    const output = result.generation_output
-      ? {
-          ...result.generation_output,
-          ply_url: proxify(result.generation_output.ply_url),
-          collider_mesh_url: proxify(
-            result.generation_output.collider_mesh_url
-          ),
-          image_prompt_url: proxify(result.generation_output.image_prompt_url),
-        }
-      : null;
+    let output = null;
+    if (result.generation_output) {
+      // Handle spz_urls object if it exists
+      let spz_urls = result.generation_output.spz_urls;
+      if (spz_urls && typeof spz_urls === "object") {
+        spz_urls = Object.keys(spz_urls).reduce((acc: any, key: string) => {
+          acc[key] = proxify(spz_urls[key]);
+          return acc;
+        }, {});
+      }
+
+      output = {
+        ...result.generation_output,
+        ply_url: proxify(result.generation_output.ply_url),
+        collider_mesh_url: proxify(result.generation_output.collider_mesh_url),
+        image_prompt_url: proxify(result.generation_output.image_prompt_url),
+        cond_image_url: proxify(result.generation_output.cond_image_url),
+        posed_cond_image: proxify(result.generation_output.posed_cond_image),
+        spz_urls: spz_urls,
+      };
+    }
 
     return NextResponse.json({
       jobId: jobId,
