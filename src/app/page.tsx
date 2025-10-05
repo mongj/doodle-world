@@ -106,7 +106,10 @@ export default function Home() {
       (job) =>
         job.status === "PENDING" ||
         job.status === "INITIALIZING" ||
-        job.status === "PROCESSING"
+        job.status === "PROCESSING" ||
+        // Also poll if mesh conversion or music generation is still pending
+        job.meshConversionStatus === "pending" ||
+        job.musicGenerationStatus === "pending"
     );
 
     if (activeJobs.length > 0) {
