@@ -286,6 +286,7 @@ export default function Scene({
       id: "groupphoto",
       name: "Group Photo",
       modelUrl: "/assets/homemade/groupphoto.glb",
+      scale: 0.6
     },
     {
       id: "macbook",
