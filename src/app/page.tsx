@@ -280,7 +280,7 @@ export default function Home() {
           Doodle World
         </h1>
         <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-          Step into an interactive 3D tavern where physics meets fantasy
+          Step into an immersive 3D world where imagination is your only limit
         </p>
       </header>
 
@@ -290,9 +290,10 @@ export default function Home() {
         <div className="max-w-7xl mx-auto mb-8">
           <button
             onClick={() => setIsDialogOpen(true)}
-            className="w-full bg-gradient-to-br from-purple-400 to-purple-500 rounded-3xl p-2 shadow-lg hover:shadow-xl hover:scale-[1.01] transition-all cursor-pointer"
+            className="w-full bg-gradient-to-br from-purple-500 via-purple-600 to-pink-500 rounded-3xl p-4 shadow-lg hover:shadow-xl transition-all cursor-pointer relative overflow-hidden"
           >
-            <div className="bg-white rounded-2xl p-6">
+            <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/20 to-white/0 opacity-50"></div>
+            <div className="bg-white rounded-2xl p-6 transition-transform relative">
               <h2 className="text-2xl font-bold text-gray-800 mb-2">
                 ✨ Create Your Own World
               </h2>
@@ -313,13 +314,16 @@ export default function Home() {
 
         {/* Coverflow Carousel */}
         <div className="max-w-7xl mx-auto mb-16">
-          <div className="relative overflow-hidden py-8" style={{ perspective: "1500px" }}>
+          <div
+            className="relative overflow-hidden py-8"
+            style={{ perspective: "1500px" }}
+          >
             {/* Carousel Container */}
             <div className="relative h-[550px] flex items-center justify-center">
               {worlds.map((world, index) => {
                 const offset = index - currentIndex;
                 const absOffset = Math.abs(offset);
-                
+
                 // Only render cards within visible range
                 if (absOffset > 4) return null;
 
@@ -336,24 +340,28 @@ export default function Home() {
 
                 // Calculate transforms based on position - mimicking reference carousel
                 const isCenter = offset === 0;
-                
+
                 // Horizontal spacing - cards overlap more
                 const translateX = offset * 220;
-                
+
                 // Scale - center is much bigger, sides much smaller
-                const scale = isCenter ? 1.3 : Math.max(0.35, 0.7 - absOffset * 0.15);
-                
+                const scale = isCenter
+                  ? 1.3
+                  : Math.max(0.35, 0.7 - absOffset * 0.15);
+
                 // Rotation - more subtle angle
                 const rotateY = offset * -35;
-                
+
                 // Z-axis translation for depth
                 const translateZ = isCenter ? 0 : -absOffset * 100;
-                
+
                 // Z-index
                 const zIndex = 20 - absOffset;
-                
+
                 // Opacity - side cards more visible but still faded
-                const opacity = isCenter ? 1 : Math.max(0.3, 0.7 - absOffset * 0.2);
+                const opacity = isCenter
+                  ? 1
+                  : Math.max(0.3, 0.7 - absOffset * 0.2);
 
                 return (
                   <div
@@ -429,7 +437,9 @@ export default function Home() {
                 </svg>
               </button>
               <button
-                onClick={() => setCurrentIndex(Math.min(worlds.length - 1, currentIndex + 1))}
+                onClick={() =>
+                  setCurrentIndex(Math.min(worlds.length - 1, currentIndex + 1))
+                }
                 disabled={currentIndex === worlds.length - 1}
                 className="w-14 h-14 rounded-full bg-gray-700 hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white flex items-center justify-center shadow-lg transition-all hover:scale-110"
                 aria-label="Next"
@@ -502,7 +512,7 @@ export default function Home() {
                 <h2 className="text-3xl font-bold">✨ Generate Your World</h2>
                 <button
                   onClick={() => setIsDialogOpen(false)}
-                  className="text-white hover:text-gray-200 text-3xl font-bold transition-colors"
+                  className="text-white hover:text-gray-200 text-3xl font-bold transition-colors cursor-pointer"
                 >
                   ×
                 </button>
@@ -532,7 +542,7 @@ export default function Home() {
                           setUploadedImage(null);
                           setUploadedFile(null);
                         }}
-                        className="text-red-500 hover:text-red-700 font-semibold"
+                        className="text-red-500 hover:text-red-700 font-semibold cursor-pointer"
                       >
                         Remove Image
                       </button>
@@ -588,14 +598,14 @@ export default function Home() {
               <div className="flex gap-4 pt-4">
                 <button
                   onClick={() => setIsDialogOpen(false)}
-                  className="flex-1 px-6 py-4 border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-6 py-4 border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleGenerate}
                   disabled={!uploadedImage || isGenerating}
-                  className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
                 >
                   {isGenerating ? "🔄 Generating..." : "🎨 Generate World"}
                 </button>
