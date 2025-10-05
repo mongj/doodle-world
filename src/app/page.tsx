@@ -11,6 +11,7 @@ interface Job {
   updatedAt?: number;
   model: string;
   prompt: string;
+  title?: string;
   error: string | null;
   output: any;
   meshConversionStatus?: string;
@@ -180,10 +181,41 @@ export default function Home() {
     setIsGenerating(true);
 
     try {
-      const formData = new FormData();
-      if (prompt.trim().length > 0) {
-        formData.append("textPrompt", prompt.trim());
+      // Step 1: Call text completion endpoint to get title and description
+      console.log(
+        "[Generation] Step 1: Calling Gemini to generate scene description"
+      );
+
+      // Convert image to base64
+      const base64Image = uploadedImage; // Already in base64 from handleImageUpload
+
+      const textCompleteResponse = await fetch("/api/text/complete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt:
+            prompt.trim() ||
+            "Describe this scene in detail for 3D world generation",
+          image: base64Image,
+          mimeType: uploadedFile.type,
+        }),
+      });
+
+      if (!textCompleteResponse.ok) {
+        throw new Error("Failed to generate scene description");
       }
+
+      const { title, description } = await textCompleteResponse.json();
+      console.log("[Generation] Generated title:", title);
+      console.log("[Generation] Generated description:", description);
+
+      // Step 2: Use the description to generate the world
+      console.log("[Generation] Step 2: Calling Marble API to generate world");
+
+      const formData = new FormData();
+      formData.append("textPrompt", description); // Use Gemini's description
       formData.append("model", "Marble 0.1-mini");
       formData.append("image", uploadedFile);
 
@@ -198,13 +230,14 @@ export default function Home() {
 
       const data = await response.json();
 
-      // Add new job to the list
+      // Add new job to the list with title
       const newJob: Job = {
         id: data.jobId,
         status: data.status,
         createdAt: Date.now(),
         model: "Marble 0.1-mini",
-        prompt: prompt.trim(),
+        prompt: description, // Save the full description as prompt
+        title: title, // Save the title
         error: null,
         output: null,
       };
@@ -243,10 +276,11 @@ export default function Home() {
       return;
     }
 
-    const baseName =
-      job.prompt && job.prompt.trim().length > 0
-        ? job.prompt.substring(0, 50) + (job.prompt.length > 50 ? "..." : "")
-        : "Untitled World";
+    const baseName = job.title
+      ? job.title
+      : job.prompt && job.prompt.trim().length > 0
+      ? job.prompt.substring(0, 50) + (job.prompt.length > 50 ? "..." : "")
+      : "Untitled World";
 
     const newWorld: World = {
       id: job.id,
@@ -631,15 +665,24 @@ function JobCard({ job }: { job: Job }) {
         <div className="flex justify-between items-start">
           <div className="flex-1">
             <div className="flex justify-between items-center mb-2">
-              <p className="text-gray-700 font-medium">
-                {job.prompt || "Untitled World"}
-              </p>
+              <div className="flex-1">
+                <p className="text-gray-800 font-semibold text-lg">
+                  {job.title || "Untitled World"}
+                </p>
+                {job.prompt && (
+                  <p className="text-gray-600 text-sm mt-1">
+                    {job.prompt.length > 100
+                      ? job.prompt.substring(0, 100) + "..."
+                      : job.prompt}
+                  </p>
+                )}
+              </div>
               {job.status === "FAILED" ? (
-                <span className="text-sm font-medium ml-4 text-red-600">
+                <span className="text-sm font-medium ml-4 text-red-600 flex-shrink-0">
                   ❌ Failed
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 ml-4 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 ml-4 bg-blue-100 text-blue-700 rounded-full text-sm font-medium flex-shrink-0">
                   <div className="animate-spin h-3.5 w-3.5 border-2 border-blue-700 border-t-transparent rounded-full"></div>
                   In Progress
                 </span>
