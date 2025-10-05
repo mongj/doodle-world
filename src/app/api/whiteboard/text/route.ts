@@ -1,7 +1,151 @@
+import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
+import path from "path";
 
 const MESHY_API_KEY = process.env.MESHY_API_KEY;
 const TEXT_TO_3D_URL = "https://api.meshy.ai/openapi/v2/text-to-3d";
+const TRIPO3D_API_KEY = process.env.TRIPO3D_API_KEY;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Tripo3D API functions for text-to-model
+async function createTripo3DTextTask(prompt: string): Promise<string | null> {
+  if (!TRIPO3D_API_KEY) {
+    console.log("[Tripo3D Text] API key not configured");
+    return null;
+  }
+
+  try {
+    console.log("[Tripo3D Text] Creating task with prompt:", prompt);
+    
+    const response = await fetch("https://api.tripo3d.ai/v2/openapi/task", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${TRIPO3D_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        type: "text_to_model",
+        prompt: prompt,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[Tripo3D Text] Create task failed:", errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    const taskId = data.data?.task_id;
+    
+    if (taskId) {
+      console.log("[Tripo3D Text] Task created:", taskId);
+      return taskId;
+    }
+    
+    console.error("[Tripo3D Text] No task_id in response:", data);
+    return null;
+  } catch (error) {
+    console.error("[Tripo3D Text] Error creating task:", error);
+    return null;
+  }
+}
+
+async function pollTripo3DTextTask(taskId: string, originalMeshyId: string, maxAttempts: number = 80): Promise<any> {
+  console.log("[Tripo3D Text] Starting to poll task:", taskId);
+  
+  const statusDir = path.join(process.cwd(), "meshy_tasks");
+  if (!fs.existsSync(statusDir)) {
+    fs.mkdirSync(statusDir, { recursive: true });
+  }
+  
+  // Update the ORIGINAL Meshy task file so frontend polling continues to work
+  const outputPath = path.join(statusDir, `${originalMeshyId}.json`);
+  
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const response = await fetch(
+        `https://api.tripo3d.ai/v2/openapi/task/${taskId}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${TRIPO3D_API_KEY}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error(`[Tripo3D Text] Status check failed: ${response.status}`);
+        await sleep(3000);
+        continue;
+      }
+
+      const data = await response.json();
+      const task = data.data;
+      
+      if (!task) {
+        console.error("[Tripo3D Text] No task data in response");
+        await sleep(3000);
+        continue;
+      }
+
+      console.log(`[Tripo3D Text] Task status: ${task.status}, progress: ${task.progress}%`);
+
+      // Update the original Meshy task file with Tripo3D status
+      const currentStatus: any = {
+        result: originalMeshyId, // Keep the original ID for frontend
+        tripo3d_task_id: taskId,
+        status: task.status === "success" ? "SUCCEEDED" : 
+                task.status === "failed" ? "FAILED" : "IN_PROGRESS",
+        progress: task.progress || 0,
+        provider: "tripo3d",
+        switched_to_tripo3d: true,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (task.status === "success") {
+        // Tripo3D returns the GLB in pbr_model field
+        const glbUrl = task.output?.pbr_model || task.output?.base_model || task.output?.model;
+        const previewUrl = task.output?.rendered_image;
+        
+        console.log(`[Tripo3D Text] GLB URL: ${glbUrl}`);
+        console.log(`[Tripo3D Text] Preview URL: ${previewUrl}`);
+        
+        if (glbUrl) {
+          currentStatus.model_urls = {
+            glb: glbUrl,
+            ...(previewUrl && { thumbnail_url: previewUrl }),
+          };
+          fs.writeFileSync(outputPath, JSON.stringify(currentStatus, null, 2));
+          console.log("[Tripo3D Text] Task completed successfully with GLB URL");
+          return task;
+        } else {
+          console.error("[Tripo3D Text] Task succeeded but no GLB URL found in output!");
+          console.error("[Tripo3D Text] Output:", task.output);
+        }
+      }
+
+      if (task.status === "failed") {
+        currentStatus.task_error = {
+          message: "Tripo3D text generation failed",
+        };
+        fs.writeFileSync(outputPath, JSON.stringify(currentStatus, null, 2));
+        throw new Error("Tripo3D text task failed");
+      }
+
+      // Only write for in-progress status
+      if (task.status !== "success") {
+        fs.writeFileSync(outputPath, JSON.stringify(currentStatus, null, 2));
+      }
+      await sleep(3000);
+    } catch (error) {
+      console.error("[Tripo3D Text] Error polling task:", error);
+      throw error;
+    }
+  }
+
+  throw new Error("Tripo3D text task timeout");
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -75,7 +219,117 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ result: taskId });
+    // Initialize status file with PENDING status (use task-specific file)
+    const statusDir = path.join(process.cwd(), "meshy_tasks");
+    if (!fs.existsSync(statusDir)) {
+      fs.mkdirSync(statusDir, { recursive: true });
+    }
+    const taskFilePath = path.join(statusDir, `${taskId}.json`);
+    const initialStatus = {
+      result: taskId,
+      status: "PENDING",
+      progress: 0,
+      provider: "meshy",
+      mode: mode,
+      prompt: prompt, // Save prompt for potential fallback
+      created_at: new Date().toISOString(),
+    };
+    fs.writeFileSync(taskFilePath, JSON.stringify(initialStatus, null, 2));
+
+    console.log(`[Meshy Text] Task created with ID: ${taskId}. Webhook will provide updates.`);
+
+    // Start a background task to check for timeout and fallback to Tripo3D
+    // Only for preview mode (refine mode is Meshy-specific)
+    if (mode === "preview") {
+      setTimeout(async () => {
+        try {
+          console.log("[Fallback Text] Starting 1-minute timeout timer for Meshy task:", taskId);
+          
+          // Wait 1 minute (60 seconds)
+          await sleep(60000);
+          
+          // Check if Meshy task completed
+          const meshyTaskFile = path.join(statusDir, `${taskId}.json`);
+          let currentStatus: any = {};
+          
+          try {
+            if (fs.existsSync(meshyTaskFile)) {
+              const statusContent = fs.readFileSync(meshyTaskFile, "utf-8");
+              currentStatus = JSON.parse(statusContent);
+            }
+          } catch (err) {
+            console.log("[Fallback Text] Could not read status file");
+          }
+          
+          // If Meshy succeeded or is still in progress with high confidence, don't fallback
+          if (currentStatus.status === "SUCCEEDED") {
+            console.log("[Fallback Text] Meshy completed successfully, no fallback needed");
+            return;
+          }
+          
+          if (currentStatus.status === "IN_PROGRESS" && currentStatus.progress > 80) {
+            console.log("[Fallback Text] Meshy is almost done (>80%), waiting for it to complete");
+            return;
+          }
+          
+          // Meshy didn't complete or failed - fallback to Tripo3D
+          console.log("[Fallback Text] Meshy did not complete in 1 minute, falling back to Tripo3D");
+          console.log(`[Fallback Text] Current Meshy status: ${currentStatus.status}, progress: ${currentStatus.progress}%`);
+          
+          if (!TRIPO3D_API_KEY) {
+            console.log("[Fallback Text] Tripo3D API key not configured, cannot fallback");
+            return;
+          }
+          
+          // Get the original prompt
+          const originalPrompt = currentStatus.prompt || prompt;
+          if (!originalPrompt) {
+            console.error("[Fallback Text] No prompt available for fallback");
+            return;
+          }
+          
+          // Create Tripo3D task
+          const tripo3dTaskId = await createTripo3DTextTask(originalPrompt);
+          
+          if (!tripo3dTaskId) {
+            console.error("[Fallback Text] Failed to create Tripo3D task");
+            return;
+          }
+          
+          console.log("[Fallback Text] Tripo3D task created:", tripo3dTaskId);
+          
+          // Update the original Meshy file to show we're now using Tripo3D
+          fs.writeFileSync(
+            meshyTaskFile,
+            JSON.stringify({
+              ...currentStatus,
+              result: taskId, // Keep original Meshy ID
+              tripo3d_task_id: tripo3dTaskId,
+              status: "IN_PROGRESS",
+              progress: 5,
+              provider: "tripo3d",
+              switched_to_tripo3d: true,
+              fallback_reason: "Meshy timeout after 1 minute",
+              switched_at: new Date().toISOString(),
+            }, null, 2)
+          );
+          
+          // Poll Tripo3D task (updates the same file with progress)
+          await pollTripo3DTextTask(tripo3dTaskId, taskId);
+          
+        } catch (error) {
+          console.error("[Fallback Text] Error during fallback process:", error);
+        }
+      }, 0);
+    }
+
+    return NextResponse.json({ 
+      result: taskId,
+      provider: "meshy",
+      message: mode === "preview" 
+        ? "Task created. Will fallback to Tripo3D if not completed in 1 minute."
+        : "Task created."
+    });
   } catch (error) {
     console.error("Error processing text-to-3D request:", error);
     return NextResponse.json(
@@ -97,16 +351,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!MESHY_API_KEY) {
-      return NextResponse.json(
-        { error: "Server not configured" },
-        { status: 500 }
-      );
-    }
-
-    // Check if webhook has already updated this task's status
-    const fs = await import('fs');
-    const path = await import('path');
+    // Check if we have a status file (either from webhook or Tripo3D polling)
     const taskFilePath = path.join(process.cwd(), "meshy_tasks", `${taskId}.json`);
     
     if (fs.existsSync(taskFilePath)) {
@@ -114,16 +359,36 @@ export async function GET(request: NextRequest) {
         const cachedContent = fs.readFileSync(taskFilePath, "utf-8");
         const cachedData = JSON.parse(cachedContent);
         
+        // If task was switched to Tripo3D, return Tripo3D status
+        if (cachedData.switched_to_tripo3d) {
+          console.log(`[Text-to-3D] Using Tripo3D status for task ${taskId}`);
+          return NextResponse.json(cachedData);
+        }
+        
+        // If webhook updated it, use webhook data
         if (cachedData.receivedViaWebhook) {
           console.log(`[Text-to-3D] Using webhook data for task ${taskId}`);
           return NextResponse.json(cachedData);
         }
+        
+        // Otherwise, return cached data if it exists
+        if (cachedData.status && cachedData.status !== "PENDING") {
+          console.log(`[Text-to-3D] Using cached status for task ${taskId}`);
+          return NextResponse.json(cachedData);
+        }
       } catch (err) {
-        console.error("Error reading webhook cache:", err);
+        console.error("Error reading status file:", err);
       }
     }
 
-    // No webhook data yet, fetch from Meshy API
+    // No cached data yet, fetch from Meshy API
+    if (!MESHY_API_KEY) {
+      return NextResponse.json(
+        { error: "Server not configured" },
+        { status: 500 }
+      );
+    }
+
     console.log(`[Text-to-3D] Fetching from Meshy API for task ${taskId}`);
     const statusUrl = `${TEXT_TO_3D_URL}/${taskId}`;
     const statusRes = await fetch(statusUrl, {
@@ -148,4 +413,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
 
