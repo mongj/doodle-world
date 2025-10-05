@@ -323,14 +323,14 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
       {/* Hero Section */}
       <header className="px-8 py-16 text-center">
-        <div className="flex justify-center mb-6">
+        <div className="flex justify-center mb-6 px-8">
           <img
             src="/logo transparent.png"
             alt="Doodle World"
-            className="h-[300px] w-auto object-contain"
+            className="w-full max-w-6xl"
           />
         </div>
-        <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+        <p className="text-lg md:text-2xl text-gray-600 w-full max-w-6xl mx-auto">
           Step into an immersive 3D world where imagination is your only limit
         </p>
       </header>
@@ -346,7 +346,7 @@ export default function Home() {
               boxShadow: "8px 8px 0px 0px rgba(0, 0, 0, 1)",
             }}
           >
-            <div className="flex items-center justify-center gap-4">
+            <div className="flex items-center justify-center gap-4 text-gray-800">
               <svg
                 className="w-8 h-8"
                 fill="none"
@@ -373,20 +373,20 @@ export default function Home() {
         </div>
 
         {/* OR Divider */}
-        <div className="max-w-7xl mx-auto flex items-center gap-4 my-8">
+        <div className="max-w-7xl mx-auto flex items-center gap-4 pt-8">
           <div className="h-px bg-gray-300 flex-1"></div>
-          <span className="text-gray-500 text-sm tracking-wide"> LIBRARY </span>
+          <span className="text-gray-500 text-lg tracking-wide"> LIBRARY </span>
           <div className="h-px bg-gray-300 flex-1"></div>
         </div>
 
         {/* Coverflow Carousel */}
         <div className="max-w-7xl mx-auto mb-16">
           <div
-            className="relative overflow-hidden py-8"
+            className="relative overflow-hidden"
             style={{ perspective: "1500px" }}
           >
             {/* Carousel Container */}
-            <div className="relative h-[550px] flex items-center justify-center">
+            <div className="relative h-[550px] flex items-center justify-center mb-4">
               {worlds.map((world, index) => {
                 const offset = index - currentIndex;
                 const absOffset = Math.abs(offset);
@@ -472,7 +472,7 @@ export default function Home() {
             </div>
 
             {/* Navigation Arrows */}
-            <div className="flex justify-center items-center gap-4 mt-8">
+            <div className="flex justify-center items-center gap-4 my-4">
               <button
                 onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
                 disabled={currentIndex === 0}
