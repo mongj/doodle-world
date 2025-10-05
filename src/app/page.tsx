@@ -44,6 +44,7 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [worlds, setWorlds] = useState<World[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize worlds from localStorage and always update presets from JSON
@@ -289,7 +290,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto mb-8">
           <button
             onClick={() => setIsDialogOpen(true)}
-            className="w-full bg-gradient-to-br from-purple-400 to-purple-500 rounded-3xl p-8 shadow-lg hover:shadow-xl hover:scale-[1.01] transition-all cursor-pointer"
+            className="w-full bg-gradient-to-br from-purple-400 to-purple-500 rounded-3xl p-2 shadow-lg hover:shadow-xl hover:scale-[1.01] transition-all cursor-pointer"
           >
             <div className="bg-white rounded-2xl p-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-2">
@@ -310,56 +311,145 @@ export default function Home() {
           <div className="h-px bg-gray-300 flex-1"></div>
         </div>
 
-        {/* Worlds Grid */}
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-          {worlds.map((world, index) => {
-            // Cycle through gradient colors
-            const gradients = [
-              "from-orange-400 to-orange-500",
-              "from-pink-400 to-pink-500",
-              "from-green-400 to-green-500",
-              "from-yellow-400 to-yellow-500",
-              "from-blue-400 to-blue-500",
-              "from-purple-400 to-purple-500",
-            ];
-            const gradient = gradients[index % gradients.length];
+        {/* Coverflow Carousel */}
+        <div className="max-w-7xl mx-auto mb-16">
+          <div className="relative overflow-hidden py-8" style={{ perspective: "1500px" }}>
+            {/* Carousel Container */}
+            <div className="relative h-[550px] flex items-center justify-center">
+              {worlds.map((world, index) => {
+                const offset = index - currentIndex;
+                const absOffset = Math.abs(offset);
+                
+                // Only render cards within visible range
+                if (absOffset > 4) return null;
 
-            return (
-              <Link
-                key={world.id}
-                href={`/world/${world.id}`}
-                className={`bg-gradient-to-br ${gradient} rounded-3xl p-4 shadow-lg hover:shadow-xl transition-all cursor-pointer block`}
-              >
-                <div className="bg-white rounded-2xl overflow-hidden h-full hover:scale-105 transition-transform">
-                  {world.thumbnailUrl && (
-                    <div className="aspect-video bg-gray-200 relative">
-                      <img
-                        src={world.thumbnailUrl}
-                        alt={world.name}
-                        className="w-full h-full object-cover"
-                        crossOrigin="anonymous"
-                      />
-                      {world.isPreset && (
-                        <span className="absolute top-2 right-2 bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-semibold">
-                          Preset
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  <div className="p-6">
-                    <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                      {world.name}
-                    </h2>
-                    <p className="text-sm text-gray-500">
-                      {world.isPreset
-                        ? "Built-in World"
-                        : new Date(world.createdAt).toLocaleDateString()}
-                    </p>
+                // Cycle through gradient colors
+                const gradients = [
+                  "from-orange-400 to-orange-500",
+                  "from-pink-400 to-pink-500",
+                  "from-green-400 to-green-500",
+                  "from-yellow-400 to-yellow-500",
+                  "from-blue-400 to-blue-500",
+                  "from-purple-400 to-purple-500",
+                ];
+                const gradient = gradients[index % gradients.length];
+
+                // Calculate transforms based on position - mimicking reference carousel
+                const isCenter = offset === 0;
+                
+                // Horizontal spacing - cards overlap more
+                const translateX = offset * 220;
+                
+                // Scale - center is much bigger, sides much smaller
+                const scale = isCenter ? 1.3 : Math.max(0.35, 0.7 - absOffset * 0.15);
+                
+                // Rotation - more subtle angle
+                const rotateY = offset * -35;
+                
+                // Z-axis translation for depth
+                const translateZ = isCenter ? 0 : -absOffset * 100;
+                
+                // Z-index
+                const zIndex = 20 - absOffset;
+                
+                // Opacity - side cards more visible but still faded
+                const opacity = isCenter ? 1 : Math.max(0.3, 0.7 - absOffset * 0.2);
+
+                return (
+                  <div
+                    key={world.id}
+                    className="absolute transition-all duration-500 ease-out"
+                    style={{
+                      transform: `translateX(${translateX}px) translateZ(${translateZ}px) scale(${scale}) rotateY(${rotateY}deg)`,
+                      transformStyle: "preserve-3d",
+                      zIndex,
+                      opacity,
+                      width: "450px",
+                      pointerEvents: isCenter ? "auto" : "none",
+                    }}
+                  >
+                    <Link
+                      href={`/world/${world.id}`}
+                      className={`bg-gradient-to-br ${gradient} rounded-3xl p-2 shadow-2xl transition-shadow cursor-pointer block`}
+                      style={{ pointerEvents: isCenter ? "auto" : "none" }}
+                    >
+                      <div className="bg-white rounded-2xl overflow-hidden">
+                        {world.thumbnailUrl && (
+                          <div className="aspect-video bg-gray-200 relative">
+                            <img
+                              src={world.thumbnailUrl}
+                              alt={world.name}
+                              className="w-full h-full object-cover"
+                              crossOrigin="anonymous"
+                            />
+                            {world.isPreset && (
+                              <span className="absolute top-2 right-2 bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-semibold">
+                                Preset
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        <div className="p-6">
+                          <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                            {world.name}
+                          </h2>
+                          <p className="text-sm text-gray-500">
+                            {world.isPreset
+                              ? "Built-in World"
+                              : new Date(world.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
                   </div>
-                </div>
-              </Link>
-            );
-          })}
+                );
+              })}
+            </div>
+
+            {/* Navigation Arrows */}
+            <div className="flex justify-center items-center gap-4 mt-8">
+              <button
+                onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
+                disabled={currentIndex === 0}
+                className="w-14 h-14 rounded-full bg-gray-700 hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white flex items-center justify-center shadow-lg transition-all hover:scale-110"
+                aria-label="Previous"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </button>
+              <button
+                onClick={() => setCurrentIndex(Math.min(worlds.length - 1, currentIndex + 1))}
+                disabled={currentIndex === worlds.length - 1}
+                className="w-14 h-14 rounded-full bg-gray-700 hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white flex items-center justify-center shadow-lg transition-all hover:scale-110"
+                aria-label="Next"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Jobs Section */}
