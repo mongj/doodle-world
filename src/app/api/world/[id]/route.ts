@@ -30,39 +30,43 @@ export async function GET(
       }
     }
 
-    // Check jobs directory
-    const jobsDir = path.join(process.cwd(), "jobs");
-    const jobPath = path.join(jobsDir, `${worldId}.json`);
+    // Check Google Cloud Storage bucket for job (public bucket)
+    try {
+      const gcsUrl = `https://storage.googleapis.com/doodle-world-static/jobs/${worldId}.json`;
+      const response = await fetch(gcsUrl);
 
-    if (fs.existsSync(jobPath)) {
-      const jobContent = fs.readFileSync(jobPath, "utf-8");
-      const job = JSON.parse(jobContent);
+      if (response.ok) {
+        const job = await response.json();
 
-      if (job.status === "SUCCEEDED" && job.output) {
-        return NextResponse.json({
-          id: worldId,
-          name: job.prompt || "Generated World",
-          thumbnailUrl: proxify(job.output.image_prompt_url) || null,
-          splatUrl: proxify(job.output.ply_url),
-          meshUrl:
-            proxify(job.convertedMeshUrl || job.output.converted_mesh_url) ||
-            null,
-          backgroundMusic: proxify(job.backgroundMusic),
-          walkingSound: proxify(job.walkingSound),
-          isPreset: false,
-          status: job.status,
-          createdAt: job.createdAt,
-        });
-      } else {
-        return NextResponse.json(
-          {
-            error: "World generation not complete",
-            status: job.status,
+        if (job.status === "SUCCEEDED" && job.output) {
+          return NextResponse.json({
             id: worldId,
-          },
-          { status: 400 }
-        );
+            name: job.prompt || "Generated World",
+            thumbnailUrl: proxify(job.output.image_prompt_url) || null,
+            splatUrl: proxify(job.output.ply_url),
+            meshUrl:
+              proxify(job.convertedMeshUrl || job.output.converted_mesh_url) ||
+              null,
+            backgroundMusic: proxify(job.backgroundMusic),
+            walkingSound: proxify(job.walkingSound),
+            isPreset: false,
+            status: job.status,
+            createdAt: job.createdAt,
+          });
+        } else {
+          return NextResponse.json(
+            {
+              error: "World generation not complete",
+              status: job.status,
+              id: worldId,
+            },
+            { status: 400 }
+          );
+        }
       }
+    } catch (gcsError) {
+      console.error("Error reading from GCS:", gcsError);
+      // Fall through to 404 if GCS read fails
     }
 
     return NextResponse.json({ error: "World not found" }, { status: 404 });

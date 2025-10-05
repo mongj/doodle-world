@@ -1,10 +1,10 @@
-import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
-import path from "path";
+import { Storage } from "@google-cloud/storage";
 
 const MESHY_API_KEY = process.env.MESHY_API_KEY;
 const TEXT_TO_3D_URL = "https://api.meshy.ai/openapi/v2/text-to-3d";
 const TRIPO3D_API_KEY = process.env.TRIPO3D_API_KEY;
+const GCS_BUCKET_NAME = "doodle-world-static";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -57,13 +57,10 @@ async function pollTripo3DTextTask(taskId: string, originalMeshyId: string, mesh
   console.log("[Tripo3D Text] Starting to poll task:", taskId);
   console.log("[Tripo3D Text] Meshy stopped at:", meshyLastProgress, "% - will map Tripo3D progress to", meshyLastProgress, "-100%");
   
-  const statusDir = path.join(process.cwd(), "meshy_tasks");
-  if (!fs.existsSync(statusDir)) {
-    fs.mkdirSync(statusDir, { recursive: true });
-  }
-  
+  const storage = new Storage();
+  const bucket = storage.bucket(GCS_BUCKET_NAME);
   // Update the ORIGINAL Meshy task file so frontend polling continues to work
-  const outputPath = path.join(statusDir, `${originalMeshyId}.json`);
+  const file = bucket.file(`meshy_tasks/${originalMeshyId}.json`);
   
   for (let i = 0; i < maxAttempts; i++) {
     try {
@@ -129,7 +126,9 @@ async function pollTripo3DTextTask(taskId: string, originalMeshyId: string, mesh
             glb: glbUrl,
             ...(previewUrl && { thumbnail_url: previewUrl }),
           };
-          fs.writeFileSync(outputPath, JSON.stringify(currentStatus, null, 2));
+          await file.save(JSON.stringify(currentStatus, null, 2), {
+            metadata: { contentType: "application/json" },
+          });
           console.log("[Tripo3D Text] Task completed successfully - Status: SUCCEEDED, Progress: 100%");
           return task;
         } else {
@@ -142,13 +141,17 @@ async function pollTripo3DTextTask(taskId: string, originalMeshyId: string, mesh
         currentStatus.task_error = {
           message: "Tripo3D text generation failed",
         };
-        fs.writeFileSync(outputPath, JSON.stringify(currentStatus, null, 2));
+        await file.save(JSON.stringify(currentStatus, null, 2), {
+          metadata: { contentType: "application/json" },
+        });
         throw new Error("Tripo3D text task failed");
       }
 
       // Only write for in-progress status
       if (task.status !== "success") {
-        fs.writeFileSync(outputPath, JSON.stringify(currentStatus, null, 2));
+        await file.save(JSON.stringify(currentStatus, null, 2), {
+          metadata: { contentType: "application/json" },
+        });
       }
       await sleep(3000);
     } catch (error) {
@@ -233,11 +236,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Initialize status file with PENDING status (use task-specific file)
-    const statusDir = path.join(process.cwd(), "meshy_tasks");
-    if (!fs.existsSync(statusDir)) {
-      fs.mkdirSync(statusDir, { recursive: true });
-    }
-    const taskFilePath = path.join(statusDir, `${taskId}.json`);
+    const storage = new Storage();
+    const bucket = storage.bucket(GCS_BUCKET_NAME);
+    const taskFile = bucket.file(`meshy_tasks/${taskId}.json`);
     const initialStatus = {
       result: taskId,
       status: "PENDING",
@@ -247,7 +248,9 @@ export async function POST(request: NextRequest) {
       prompt: prompt, // Save prompt for potential fallback
       created_at: new Date().toISOString(),
     };
-    fs.writeFileSync(taskFilePath, JSON.stringify(initialStatus, null, 2));
+    await taskFile.save(JSON.stringify(initialStatus, null, 2), {
+      metadata: { contentType: "application/json" },
+    });
 
     console.log(`[Meshy Text] Task created with ID: ${taskId}. Webhook will provide updates.`);
 
@@ -262,13 +265,16 @@ export async function POST(request: NextRequest) {
           await sleep(10000);
           
           // Check if Meshy task completed
-          const meshyTaskFile = path.join(statusDir, `${taskId}.json`);
+          const storage = new Storage();
+          const bucket = storage.bucket(GCS_BUCKET_NAME);
+          const meshyTaskFile = bucket.file(`meshy_tasks/${taskId}.json`);
           let currentStatus: any = {};
           
           try {
-            if (fs.existsSync(meshyTaskFile)) {
-              const statusContent = fs.readFileSync(meshyTaskFile, "utf-8");
-              currentStatus = JSON.parse(statusContent);
+            const [exists] = await meshyTaskFile.exists();
+            if (exists) {
+              const [content] = await meshyTaskFile.download();
+              currentStatus = JSON.parse(content.toString("utf-8"));
             }
           } catch (err) {
             console.log("[Fallback Text] Could not read status file");
@@ -316,8 +322,7 @@ export async function POST(request: NextRequest) {
           console.log("[Fallback Text] Meshy last progress:", meshyLastProgress, "%");
           
           // Update the original Meshy file to show we're now using Tripo3D
-          fs.writeFileSync(
-            meshyTaskFile,
+          await meshyTaskFile.save(
             JSON.stringify({
               ...currentStatus,
               result: taskId, // Keep original Meshy ID
@@ -329,7 +334,8 @@ export async function POST(request: NextRequest) {
               switched_to_tripo3d: true,
               fallback_reason: "Meshy timeout after 10 seconds",
               switched_at: new Date().toISOString(),
-            }, null, 2)
+            }, null, 2),
+            { metadata: { contentType: "application/json" } }
           );
           
           // Poll Tripo3D task (updates the same file with progress)
@@ -370,12 +376,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if we have a status file (either from webhook or Tripo3D polling)
-    const taskFilePath = path.join(process.cwd(), "meshy_tasks", `${taskId}.json`);
+    const storage = new Storage();
+    const bucket = storage.bucket(GCS_BUCKET_NAME);
+    const taskFile = bucket.file(`meshy_tasks/${taskId}.json`);
     
-    if (fs.existsSync(taskFilePath)) {
+    const [exists] = await taskFile.exists();
+    if (exists) {
       try {
-        const cachedContent = fs.readFileSync(taskFilePath, "utf-8");
-        const cachedData = JSON.parse(cachedContent);
+        const [cachedContent] = await taskFile.download();
+        const cachedData = JSON.parse(cachedContent.toString("utf-8"));
         
         // If task was switched to Tripo3D, return Tripo3D status
         if (cachedData.switched_to_tripo3d) {

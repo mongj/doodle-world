@@ -1,9 +1,9 @@
-import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
-import path from "path";
+import { Storage } from "@google-cloud/storage";
 
 const MESHY_API_KEY = process.env.MESHY_API_KEY;
 const WEBHOOK_TIMEOUT_MS = 30000; // 30 seconds - if webhook is older, fall back to API
+const GCS_BUCKET_NAME = "doodle-world-static";
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,13 +18,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Read from task-specific file first (webhook data)
-    const taskFilePath = path.join(process.cwd(), "meshy_tasks", `${taskId}.json`);
+    const storage = new Storage();
+    const bucket = storage.bucket(GCS_BUCKET_NAME);
+    const taskFile = bucket.file(`meshy_tasks/${taskId}.json`);
     
     let shouldFallbackToAPI = false;
     
-    if (fs.existsSync(taskFilePath)) {
-      const statusContent = fs.readFileSync(taskFilePath, "utf-8");
-      const statusData = JSON.parse(statusContent);
+    const [exists] = await taskFile.exists();
+    if (exists) {
+      const [statusContent] = await taskFile.download();
+      const statusData = JSON.parse(statusContent.toString("utf-8"));
 
       // Check if webhook data is fresh and complete
       // Trust data if it came via webhook OR if it's a completed Tripo3D fallback
@@ -91,19 +94,16 @@ export async function GET(request: NextRequest) {
       if (statusRes.ok) {
         const apiData = await statusRes.json();
         
-        // Save to file for next time
-        const statusDir = path.join(process.cwd(), "meshy_tasks");
-        if (!fs.existsSync(statusDir)) {
-          fs.mkdirSync(statusDir, { recursive: true });
-        }
-        
+        // Save to GCS for next time
         const fallbackData = {
           ...apiData,
           lastUpdated: new Date().toISOString(),
           receivedViaAPI: true,
         };
         
-        fs.writeFileSync(taskFilePath, JSON.stringify(fallbackData, null, 2));
+        await taskFile.save(JSON.stringify(fallbackData, null, 2), {
+          metadata: { contentType: "application/json" },
+        });
         console.log(`[Status] ✓ Fetched and cached from API`);
         
         return NextResponse.json({

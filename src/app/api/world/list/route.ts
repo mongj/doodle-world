@@ -1,23 +1,24 @@
-import fs from "fs";
 import { NextResponse } from "next/server";
-import path from "path";
+import { Storage } from "@google-cloud/storage";
+
+const GCS_BUCKET_NAME = "doodle-world-static";
 
 export async function GET() {
   try {
-    const jobsDir = path.join(process.cwd(), "jobs");
-
-    // Create jobs directory if it doesn't exist
-    if (!fs.existsSync(jobsDir)) {
-      fs.mkdirSync(jobsDir, { recursive: true });
-      return NextResponse.json({ jobs: [] });
-    }
-
-    // Read all job files
-    const files = fs.readdirSync(jobsDir).filter((f) => f.endsWith(".json"));
-    const jobs = files.map((file) => {
-      const content = fs.readFileSync(path.join(jobsDir, file), "utf-8");
-      return JSON.parse(content);
-    });
+    const storage = new Storage();
+    const bucket = storage.bucket(GCS_BUCKET_NAME);
+    
+    // List all JSON files in the jobs/ directory
+    const [files] = await bucket.getFiles({ prefix: "jobs/" });
+    
+    const jobs = await Promise.all(
+      files
+        .filter((file) => file.name.endsWith(".json"))
+        .map(async (file) => {
+          const [content] = await file.download();
+          return JSON.parse(content.toString("utf-8"));
+        })
+    );
 
     // Sort by creation time, newest first
     jobs.sort((a, b) => b.createdAt - a.createdAt);

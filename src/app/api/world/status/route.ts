@@ -1,10 +1,10 @@
 import { proxify } from "@/utils/cdn-proxy";
-import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
-import path from "path";
+import { Storage } from "@google-cloud/storage";
 
 const API_BASE_URL = "https://marble2-kgw-prod-iac1.wlt-ai.art/api/v1";
 const BEARER_TOKEN = process.env.MARBLE_API_TOKEN;
+const GCS_BUCKET_NAME = "doodle-world-static";
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,11 +25,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const jobsDir = path.join(process.cwd(), "jobs");
-    const jobPath = path.join(jobsDir, `${jobId}.json`);
+    const storage = new Storage();
+    const bucket = storage.bucket(GCS_BUCKET_NAME);
+    const file = bucket.file(`jobs/${jobId}.json`);
 
-    // Check if job exists locally
-    if (!fs.existsSync(jobPath)) {
+    // Check if job exists in GCS
+    const [exists] = await file.exists();
+    if (!exists) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
@@ -52,8 +54,9 @@ export async function GET(request: NextRequest) {
 
     const result = await response.json();
 
-    // Update local job data
-    const localJob = JSON.parse(fs.readFileSync(jobPath, "utf-8"));
+    // Update job data from GCS
+    const [jobContent] = await file.download();
+    const localJob = JSON.parse(jobContent.toString("utf-8"));
     const updatedJob = {
       ...localJob,
       status: result.status,
@@ -104,7 +107,8 @@ export async function GET(request: NextRequest) {
             const conversionResult = await conversionResponse.json();
 
             // Update job with converted mesh URL
-            const jobData = JSON.parse(fs.readFileSync(jobPath, "utf-8"));
+            const [content] = await file.download();
+            const jobData = JSON.parse(content.toString("utf-8"));
             jobData.meshConversionStatus = conversionResponse.ok
               ? "completed"
               : "failed";
@@ -117,13 +121,18 @@ export async function GET(request: NextRequest) {
               }
             }
 
-            fs.writeFileSync(jobPath, JSON.stringify(jobData, null, 2));
+            await file.save(JSON.stringify(jobData, null, 2), {
+              metadata: { contentType: "application/json" },
+            });
           })
-          .catch((err) => {
+          .catch(async (err) => {
             console.error("Mesh conversion failed:", err);
-            const jobData = JSON.parse(fs.readFileSync(jobPath, "utf-8"));
+            const [content] = await file.download();
+            const jobData = JSON.parse(content.toString("utf-8"));
             jobData.meshConversionStatus = "failed";
-            fs.writeFileSync(jobPath, JSON.stringify(jobData, null, 2));
+            await file.save(JSON.stringify(jobData, null, 2), {
+              metadata: { contentType: "application/json" },
+            });
           });
       }
     }
@@ -148,12 +157,13 @@ export async function GET(request: NextRequest) {
         body: JSON.stringify({
           prompt: musicPrompt,
         }),
-      })
+        })
         .then(async (musicResponse) => {
           const musicResult = await musicResponse.json();
 
           // Update job with background music URL
-          const jobData = JSON.parse(fs.readFileSync(jobPath, "utf-8"));
+          const [content] = await file.download();
+          const jobData = JSON.parse(content.toString("utf-8"));
           jobData.musicGenerationStatus = musicResponse.ok
             ? "completed"
             : "failed";
@@ -165,17 +175,24 @@ export async function GET(request: NextRequest) {
             );
           }
 
-          fs.writeFileSync(jobPath, JSON.stringify(jobData, null, 2));
+          await file.save(JSON.stringify(jobData, null, 2), {
+            metadata: { contentType: "application/json" },
+          });
         })
-        .catch((err) => {
+        .catch(async (err) => {
           console.error("Music generation failed:", err);
-          const jobData = JSON.parse(fs.readFileSync(jobPath, "utf-8"));
+          const [content] = await file.download();
+          const jobData = JSON.parse(content.toString("utf-8"));
           jobData.musicGenerationStatus = "failed";
-          fs.writeFileSync(jobPath, JSON.stringify(jobData, null, 2));
+          await file.save(JSON.stringify(jobData, null, 2), {
+            metadata: { contentType: "application/json" },
+          });
         });
     }
 
-    fs.writeFileSync(jobPath, JSON.stringify(updatedJob, null, 2));
+    await file.save(JSON.stringify(updatedJob, null, 2), {
+      metadata: { contentType: "application/json" },
+    });
 
     // Return status info with proxied CDN URLs
     const output = result.generation_output

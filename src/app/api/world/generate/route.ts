@@ -1,10 +1,10 @@
-import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
-import path from "path";
+import { Storage } from "@google-cloud/storage";
 
 const API_BASE_URL = "https://marble2-kgw-prod-iac1.wlt-ai.art/api/v1";
 const BEARER_TOKEN = process.env.MARBLE_API_TOKEN;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GCS_BUCKET_NAME = "doodle-world-static";
 
 export async function POST(request: NextRequest) {
   try {
@@ -179,17 +179,16 @@ export async function POST(request: NextRequest) {
       output: null,
     };
 
-    // Store in file system for persistence
-    const jobsDir = path.join(process.cwd(), "jobs");
+    // Store in GCS bucket for persistence
+    const storage = new Storage();
+    const bucket = storage.bucket(GCS_BUCKET_NAME);
+    const file = bucket.file(`jobs/${jobId}.json`);
 
-    if (!fs.existsSync(jobsDir)) {
-      fs.mkdirSync(jobsDir, { recursive: true });
-    }
-
-    fs.writeFileSync(
-      path.join(jobsDir, `${jobId}.json`),
-      JSON.stringify(jobData, null, 2)
-    );
+    await file.save(JSON.stringify(jobData, null, 2), {
+      metadata: {
+        contentType: "application/json",
+      },
+    });
 
     return NextResponse.json({
       jobId: jobId,
