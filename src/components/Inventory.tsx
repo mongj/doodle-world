@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, memo } from "react";
+import { memo, useState } from "react";
 
 export interface InventoryItem {
   id: string;
   name: string;
   modelUrl: string;
   icon?: string;
+  sfx?: string[];
 }
 
 interface InventoryProps {

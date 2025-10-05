@@ -209,21 +209,25 @@ export default function Scene({
       id: "orc",
       name: "Orc",
       modelUrl: "orc.glb",
+      sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3", "/sfx/orc_3.mp3"],
     },
     {
       id: "doggy",
       name: "Doggy",
       modelUrl: "/assets/doggy.glb",
+      sfx: ["/sfx/dog_1.mp3", "/sfx/dog_2.mp3", "/sfx/dog_3.mp3"],
     },
     {
       id: "dragon",
       name: "Dragon",
       modelUrl: "/assets/dragon.glb",
+      sfx: ["/sfx/dragon_1.mp3", "/sfx/dragon_2.mp3"],
     },
     {
       id: "furry",
       name: "Furry",
       modelUrl: "/assets/furry.glb",
+      sfx: ["/sfx/furry_1.mp3"],
     },
     {
       id: "peter-dink",
@@ -474,6 +478,8 @@ export default function Scene({
       const dynamicModels: Array<{
         root: THREE.Object3D;
         body: RAPIER.RigidBody;
+        lastVelocity: THREE.Vector3;
+        soundEffects?: AudioBuffer[];
       }> = [];
       const bodyToMesh = new Map<number, THREE.Mesh>();
       const projectileBodies = new Set<number>();
@@ -773,7 +779,10 @@ export default function Scene({
         Array<{ bone: THREE.Bone; body: RAPIER.RigidBody }>
       > = {};
 
-      async function loadDynamicModel(url: string): Promise<void> {
+      async function loadDynamicModel(
+        url: string,
+        soundUrls?: string[]
+      ): Promise<void> {
         try {
           const forward = new THREE.Vector3();
           camera.getWorldDirection(forward);
@@ -781,6 +790,24 @@ export default function Scene({
           const spawnPosition = camera.position
             .clone()
             .addScaledVector(forward, 3);
+
+          // Load sound effects if provided
+          let soundBuffers: AudioBuffer[] | undefined;
+          if (soundUrls && soundUrls.length > 0 && audioContext) {
+            soundBuffers = [];
+            for (const soundUrl of soundUrls) {
+              try {
+                const response = await fetch(soundUrl);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(
+                  arrayBuffer
+                );
+                soundBuffers.push(audioBuffer);
+              } catch (error) {
+                console.warn(`Failed to load sound ${soundUrl}:`, error);
+              }
+            }
+          }
 
           let loadUrl = url;
           try {
@@ -830,14 +857,25 @@ export default function Scene({
           const dynamicEntry: {
             root: THREE.Object3D;
             body: RAPIER.RigidBody;
+            lastVelocity: THREE.Vector3;
+            soundEffects?: AudioBuffer[];
           } = {
             root: new THREE.Object3D(),
             body: sharedBody,
+            lastVelocity: new THREE.Vector3(0, 0, 0),
+            soundEffects: soundBuffers,
           };
           dynamicEntry.root.position.copy(spawnPosition);
           dynamicEntry.root.quaternion.copy(initialQuaternion);
           scene.add(dynamicEntry.root);
           dynamicEntry.root.updateMatrixWorld(true);
+
+          // Play spawn sound
+          if (soundBuffers && soundBuffers.length > 0 && audioContext) {
+            const randomSound =
+              soundBuffers[Math.floor(Math.random() * soundBuffers.length)];
+            playAudio(audioContext, randomSound, 0.6, 1.0, muted);
+          }
           const parentQuaternionInverse = dynamicEntry.root.quaternion
             .clone()
             .invert();
@@ -1236,6 +1274,40 @@ export default function Scene({
               const rot = model.body.rotation();
               model.root.position.set(pos.x, pos.y, pos.z);
               model.root.quaternion.set(rot.x, rot.y, rot.z, rot.w);
+
+              // Check for collisions and play sounds
+              if (model.soundEffects && model.soundEffects.length > 0) {
+                const currentVelocity = new THREE.Vector3(
+                  model.body.linvel().x,
+                  model.body.linvel().y,
+                  model.body.linvel().z
+                );
+
+                const velocityChange = currentVelocity
+                  .clone()
+                  .sub(model.lastVelocity);
+
+                // If significant velocity change (collision detected)
+                if (
+                  velocityChange.length() > CONFIG.BOUNCE_DETECTION_THRESHOLD
+                ) {
+                  const position = new THREE.Vector3(pos.x, pos.y, pos.z);
+                  const distance = camera.position.distanceTo(position);
+                  const volume = Math.max(
+                    0.2,
+                    0.8 * (1 - distance / CONFIG.VOLUME_DISTANCE_MAX)
+                  );
+
+                  // Play random sound from the array
+                  const randomSound =
+                    model.soundEffects[
+                      Math.floor(Math.random() * model.soundEffects.length)
+                    ];
+                  playAudio(audioContext, randomSound, volume, 1.0, muted);
+                }
+
+                model.lastVelocity.copy(currentVelocity);
+              }
             } catch {
               continue;
             }
@@ -1425,8 +1497,8 @@ export default function Scene({
     try {
       // Load the model dynamically using the global function
       if ((window as any).__LOAD_DYNAMIC_MODEL__) {
-        await (window as any).__LOAD_DYNAMIC_MODEL__(item.modelUrl);
-        console.log(`Spawned ${item.name} from inventory`);
+        await (window as any).__LOAD_DYNAMIC_MODEL__(item.modelUrl, item.sfx);
+        console.log(`Spawned ${item.name} from inventory with sound effects`);
       } else {
         console.error("Dynamic model loading not available yet");
       }
@@ -1514,7 +1586,8 @@ export default function Scene({
           previewComplete = true;
           break;
         } else if (statusData.status === "FAILED") {
-          const errorMsg = statusData.task_error?.message || "Preview generation failed";
+          const errorMsg =
+            statusData.task_error?.message || "Preview generation failed";
           alert(`❌ Model Generation Failed\n\n${errorMsg}`);
           throw new Error(errorMsg);
         }
@@ -1600,7 +1673,8 @@ export default function Scene({
             throw new Error("No GLB model URL in response");
           }
         } else if (statusData.status === "FAILED") {
-          const errorMsg = statusData.task_error?.message || "Texture generation failed";
+          const errorMsg =
+            statusData.task_error?.message || "Texture generation failed";
           alert(`❌ Texture Generation Failed\n\n${errorMsg}`);
           throw new Error(errorMsg);
         }
@@ -1670,7 +1744,9 @@ export default function Scene({
       // Start progress polling with taskId
       const progressInterval = setInterval(async () => {
         try {
-          const statusRes = await fetch(`/api/whiteboard/status?taskId=${taskId}`);
+          const statusRes = await fetch(
+            `/api/whiteboard/status?taskId=${taskId}`
+          );
           if (statusRes.ok) {
             const statusData = await statusRes.json();
             const progress = statusData.progress || 0;
@@ -1693,14 +1769,17 @@ export default function Scene({
       for (let i = 0; i < maxTries; i++) {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
 
-        const statusRes = await fetch(`/api/whiteboard/status?taskId=${taskId}`);
+        const statusRes = await fetch(
+          `/api/whiteboard/status?taskId=${taskId}`
+        );
         if (!statusRes.ok) continue;
 
         const statusData = await statusRes.json();
 
         if (statusData.status === "FAILED") {
           clearInterval(progressInterval);
-          const errorMsg = statusData.task_error?.message || "Model generation failed";
+          const errorMsg =
+            statusData.task_error?.message || "Model generation failed";
           alert(`❌ Model Generation Failed\n\n${errorMsg}`);
           throw new Error(errorMsg);
         }
