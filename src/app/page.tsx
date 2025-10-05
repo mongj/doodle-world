@@ -558,20 +558,25 @@ export default function Home() {
 
       {/* Dialog Modal */}
       {isDialogOpen && (
-        <div className="fixed inset-0 bg-white/30 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div
+            className="bg-white rounded-3xl border-4 border-black max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+            style={{
+              boxShadow: "12px 12px 0px 0px rgba(0, 0, 0, 1)",
+            }}
+          >
             {/* Dialog Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6 rounded-t-3xl">
+            <div className="sticky top-0 bg-white border-b-4 border-black p-6 rounded-t-3xl">
               <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-bold">✨ Generate Your World</h2>
+                <h2 className="text-3xl font-bold text-gray-800">Generate Your World</h2>
                 <button
                   onClick={() => setIsDialogOpen(false)}
-                  className="text-white hover:text-gray-200 text-3xl font-bold transition-colors cursor-pointer"
+                  className="text-gray-800 hover:text-gray-600 text-3xl font-bold transition-colors cursor-pointer"
                 >
                   ×
                 </button>
               </div>
-              <p className="text-purple-100 mt-2">
+              <p className="text-gray-600 mt-2">
                 Upload an image and describe the world you want to create
               </p>
             </div>
@@ -583,7 +588,7 @@ export default function Home() {
                 <label className="block text-lg font-semibold text-gray-800 mb-3">
                   Upload Reference Image
                 </label>
-                <div className="border-4 border-dashed border-purple-300 rounded-2xl p-8 text-center hover:border-purple-500 transition-colors">
+                <div className="border-4 border-dashed border-black rounded-2xl p-8 text-center hover:border-gray-600 transition-colors">
                   {uploadedImage ? (
                     <div className="space-y-4">
                       <img
@@ -604,7 +609,7 @@ export default function Home() {
                   ) : (
                     <div>
                       <svg
-                        className="mx-auto h-16 w-16 text-purple-400 mb-4"
+                        className="mx-auto h-16 w-16 text-gray-400 mb-4"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -617,7 +622,7 @@ export default function Home() {
                         />
                       </svg>
                       <label className="cursor-pointer">
-                        <span className="text-purple-600 font-semibold hover:text-purple-700">
+                        <span className="text-gray-800 font-semibold hover:text-gray-600">
                           Click to upload a reference image
                         </span>
                         <input
@@ -644,7 +649,7 @@ export default function Home() {
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="Describe the world you want to generate... e.g., 'A cozy medieval library with floating books and mystical lighting'"
-                  className="w-full h-32 px-4 py-3 border-2 border-purple-300 rounded-xl focus:outline-none focus:border-purple-500 resize-none text-gray-700"
+                  className="w-full h-32 px-4 py-3 border-4 border-black rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-400 resize-none text-gray-700"
                 />
               </div>
 
@@ -652,16 +657,22 @@ export default function Home() {
               <div className="flex gap-4 pt-4">
                 <button
                   onClick={() => setIsDialogOpen(false)}
-                  className="flex-1 px-6 py-4 border-2 border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
+                  className="flex-1 px-6 py-4 bg-white border-4 border-black text-gray-800 font-bold rounded-full hover:translate-x-[2px] hover:translate-y-[2px] transition-all cursor-pointer"
+                  style={{
+                    boxShadow: "6px 6px 0px 0px rgba(0, 0, 0, 1)",
+                  }}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleGenerate}
                   disabled={!uploadedImage || isGenerating}
-                  className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
+                  className="flex-1 px-6 py-4 bg-black border-4 border-black text-white font-bold rounded-full hover:translate-x-[2px] hover:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
+                  style={{
+                    boxShadow: "6px 6px 0px 0px rgba(0, 0, 0, 1)",
+                  }}
                 >
-                  {isGenerating ? "🔄 Generating..." : "🎨 Generate World"}
+                  {isGenerating ? "Generating..." : "Generate World"}
                 </button>
               </div>
             </div>

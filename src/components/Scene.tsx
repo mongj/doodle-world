@@ -21,6 +21,7 @@ const TaskProgressList = dynamic(() => import("./TaskProgressList"), {
 
 import type { InventoryItem } from "./Inventory";
 import type { Task } from "./TaskProgressList";
+import { generateThumbnail } from "@/utils/thumbnail-generator";
 
 interface SceneProps {
   meshUrl: string;
@@ -75,6 +76,43 @@ const MAX_SUBSTEPS = 5;
 const DYNAMIC_MODEL_SCALE = 1.0;
 
 // Utility functions
+function optimizeSkinnedMeshes(object: THREE.Object3D) {
+  object.traverse((child) => {
+    if ((child as THREE.SkinnedMesh).isSkinnedMesh) {
+      const mesh = child as THREE.SkinnedMesh;
+      
+      // Critical: Simplify geometry for performance
+      const geometry = mesh.geometry;
+      
+      // Enable frustum culling (should be default but ensure it's on)
+      mesh.frustumCulled = true;
+      
+      // Optimize the skeleton - limit bone influence
+      if (mesh.skeleton && geometry.attributes.skinWeight) {
+        const skinWeights = geometry.attributes.skinWeight;
+        // Limit to 2 bone influences max (from default 4) for better performance
+        for (let i = 0; i < skinWeights.count; i++) {
+          const weights = [
+            skinWeights.getX(i),
+            skinWeights.getY(i),
+            skinWeights.getZ(i),
+            skinWeights.getW(i)
+          ];
+          
+          // Zero out weaker influences
+          if (weights[2] < 0.1) {
+            skinWeights.setZ(i, 0);
+            skinWeights.setW(i, 0);
+          }
+        }
+        skinWeights.needsUpdate = true;
+      }
+      
+      console.log(`Optimized skinned mesh: ${mesh.name || "unnamed"}, bones: ${mesh.skeleton?.bones.length || 0}`);
+    }
+  });
+}
+
 function setupMaterialsForLighting(
   object: THREE.Object3D,
   brightnessMultiplier = 1.0
@@ -85,52 +123,31 @@ function setupMaterialsForLighting(
       const materials = Array.isArray(mesh.material)
         ? mesh.material
         : [mesh.material];
-      const newMaterials: THREE.Material[] = [];
 
       for (const material of materials) {
-        if ("emissive" in material) {
-          (material as THREE.MeshStandardMaterial).emissive.setHex(0x000000);
-        }
-        if ("emissiveIntensity" in material) {
-          (material as THREE.MeshStandardMaterial).emissiveIntensity = 0;
+        // Keep MeshBasicMaterial as-is for performance (don't convert)
+        if (material.type === "MeshBasicMaterial") {
+          continue;
         }
 
-        if (material.type === "MeshBasicMaterial") {
-          const basicMat = material as THREE.MeshBasicMaterial;
-          const newMaterial = new THREE.MeshStandardMaterial({
-            color: basicMat.color,
-            map: basicMat.map,
-            roughness: 0.8,
-            metalness: 0.1,
-          });
-          newMaterials.push(newMaterial);
-        } else {
-          if ("roughness" in material)
-            (material as THREE.MeshStandardMaterial).roughness = 0.8;
-          if ("metalness" in material)
-            (material as THREE.MeshStandardMaterial).metalness = 0.1;
-          if ("color" in material && brightnessMultiplier !== 1.0) {
-            const currentColor = (
-              material as THREE.MeshStandardMaterial
-            ).color.clone();
-            currentColor.multiplyScalar(brightnessMultiplier);
-            (material as THREE.MeshStandardMaterial).color = currentColor;
+        // Optimize MeshStandardMaterial
+        if (material.type === "MeshStandardMaterial") {
+          const stdMat = material as THREE.MeshStandardMaterial;
+          stdMat.roughness = 1.0; // No specular = faster
+          stdMat.metalness = 0.0;
+          stdMat.emissive.setHex(0x000000);
+          stdMat.emissiveIntensity = 0;
+          
+          if (brightnessMultiplier !== 1.0) {
+            stdMat.color.multiplyScalar(brightnessMultiplier);
           }
-          if ("transparent" in material && "opacity" in material) {
-            if (
-              (material as THREE.MeshStandardMaterial).transparent &&
-              (material as THREE.MeshStandardMaterial).opacity === 1
-            ) {
-              (material as THREE.MeshStandardMaterial).transparent = false;
-            }
+          
+          // Disable unnecessary transparency
+          if (stdMat.transparent && stdMat.opacity === 1) {
+            stdMat.transparent = false;
           }
-          newMaterials.push(material);
         }
       }
-
-      mesh.material = Array.isArray(mesh.material)
-        ? newMaterials
-        : newMaterials[0];
     }
   });
 }
@@ -226,8 +243,12 @@ export default function Scene({
     setTasks((prev) => prev.filter((task) => task.id !== id));
   };
 
-  // Inventory items - easily extensible for future generated models
-  const inventoryItems: InventoryItem[] = [
+  // Inventory state with thumbnails
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+
+  // Generate thumbnails on mount
+  useEffect(() => {
+    const items: InventoryItem[] = [
     {
       id: "duck",
       name: "Duck",
@@ -316,6 +337,12 @@ export default function Scene({
       modelUrl: "/assets/homemade/redbull.glb",
       scale: 0.5, // Smaller Red Bull
     },
+    {
+      id: "hackharvard",
+      name: "Hack Harvard",
+      modelUrl: "/assets/homemade/hackharvard.glb",
+      scale: 0.5, // Smaller Hack Harvard
+    },
     // Santa animations
     {
       id: "santa-walking",
@@ -336,7 +363,16 @@ export default function Scene({
         "/assets/homemade/santa/Animation_360_Power_Spin_Jump_withSkin.glb",
       sfx: ["/sfx/orc_3.mp3"],
     },
-  ];
+    ];
+
+    // Generate thumbnails for all items
+    Promise.all(
+      items.map(async (item) => ({
+        ...item,
+        icon: await generateThumbnail(item.modelUrl),
+      }))
+    ).then(setInventoryItems);
+  }, []);
 
   useEffect(() => {
     setShowUI(true);
@@ -1097,6 +1133,7 @@ export default function Scene({
           // Only setup materials if not already done for this model
           if (!materialCache.has(loadUrl)) {
             setupMaterialsForLighting(gltf.scene);
+            optimizeSkinnedMeshes(gltf.scene);
             materialCache.set(loadUrl, true);
           }
           gltf.scene.position.copy(spawnPosition);
@@ -1142,14 +1179,12 @@ export default function Scene({
             const mixer = new THREE.AnimationMixer(gltf.scene);
             dynamicEntry.mixer = mixer;
 
-            // Play all animations (they might be layered)
-            gltf.animations.forEach((clip) => {
-              const action = mixer.clipAction(clip);
-              action.play();
-            });
+            // Play ONLY the first animation for performance
+            const action = mixer.clipAction(gltf.animations[0]);
+            action.play();
 
             console.log(
-              `Started ${gltf.animations.length} animation(s) for model`
+              `Started animation: ${gltf.animations[0].name || "unnamed"}`
             );
           }
 
@@ -1924,11 +1959,32 @@ export default function Scene({
           mixer?.update(frameTime);
         }
 
-        // Update dynamic model animation mixers
+        // Update dynamic model animation mixers (distance-based + view-based culling)
+        const cameraPos = camera.position;
+        const cameraDir = new THREE.Vector3();
+        camera.getWorldDirection(cameraDir);
+        
         for (const model of dynamicModels) {
           if (model.mixer && mounted) {
             try {
-              model.mixer.update(frameTime);
+              const distance = model.root.position.distanceTo(cameraPos);
+              
+              // Check if model is behind camera
+              const toModel = new THREE.Vector3().subVectors(model.root.position, cameraPos).normalize();
+              const dot = cameraDir.dot(toModel);
+              const isBehindCamera = dot < -0.5;
+              
+              // Update animations at reduced rate based on distance and visibility
+              if (distance < 10 && !isBehindCamera) {
+                // Close and visible: full rate
+                model.mixer.update(frameTime);
+              } else if (distance < 20 && !isBehindCamera) {
+                // Medium distance: half rate
+                if (Date.now() % 2 === 0) {
+                  model.mixer.update(frameTime * 2);
+                }
+              }
+              // Far or behind camera: don't update
             } catch {
               continue;
             }
@@ -2475,15 +2531,20 @@ export default function Scene({
 
       {/* Loading Screen */}
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black z-50">
-          <div className="text-center">
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 z-50">
+          <div
+            className="text-center bg-white rounded-3xl border-4 border-black p-12"
+            style={{
+              boxShadow: "12px 12px 0px 0px rgba(0, 0, 0, 1)",
+            }}
+          >
             <div className="mb-6">
-              <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-purple-500 mx-auto"></div>
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-black border-t-transparent mx-auto"></div>
             </div>
-            <h2 className="text-3xl font-bold text-white mb-2">
+            <h2 className="text-3xl font-bold text-gray-800 mb-2">
               Loading World
             </h2>
-            <p className="text-gray-400 text-lg">{loadingMessage}</p>
+            <p className="text-gray-600 text-lg">{loadingMessage}</p>
           </div>
         </div>
       )}
@@ -2497,13 +2558,23 @@ export default function Scene({
             onClick={handleStartClick}
           >
             <div className="text-center">
-              <h2 className="text-4xl font-serif italic text-white mb-4">
+              <h2 className="text-4xl font-bold text-white mb-8">
                 Ready to explore?
               </h2>
-              <button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold py-6 px-12 rounded-full text-2xl mb-8 shadow-2xl transition-all hover:scale-105">
+              <button
+                className="bg-gradient-to-r from-purple-500 to-pink-500 border-4 border-white text-white font-bold py-6 px-12 rounded-full text-2xl mb-8 transition-all hover:translate-x-[2px] hover:translate-y-[2px] hover:from-purple-600 hover:to-pink-600"
+                style={{
+                  boxShadow: "8px 8px 0px 0px rgba(255, 255, 255, 1)",
+                }}
+              >
                 Click to Start
               </button>
-              <div className="bg-white/95 rounded-3xl p-6 text-gray-800 text-sm space-y-3 max-w-md mx-auto shadow-xl">
+              <div
+                className="bg-white rounded-3xl border-4 border-black p-6 text-gray-800 text-sm space-y-3 max-w-md mx-auto"
+                style={{
+                  boxShadow: "8px 8px 0px 0px rgba(0, 0, 0, 0.5)",
+                }}
+              >
                 <p className="font-bold text-lg mb-2">Controls:</p>
                 <div className="grid grid-cols-2 gap-2 text-left">
                   <p>
@@ -2644,8 +2715,13 @@ export default function Scene({
 
       {/* Upload Modal */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
+          <div
+            className="bg-white rounded-3xl border-4 border-black p-8 max-w-md w-full mx-4"
+            style={{
+              boxShadow: "12px 12px 0px 0px rgba(0, 0, 0, 1)",
+            }}
+          >
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
               Generate 3D Model from Image
             </h2>
@@ -2664,10 +2740,13 @@ export default function Scene({
                   setShowUploadModal(false);
                 }
               }}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 mb-4"
+              className="block w-full text-sm text-gray-700 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-4 file:border-black file:text-sm file:font-bold file:bg-white file:text-gray-800 hover:file:translate-x-[2px] hover:file:translate-y-[2px] file:transition-all mb-4"
+              style={{
+                padding: "0.5rem",
+              }}
             />
 
-            <div className="flex gap-2">
+            <div className="flex gap-4">
               <button
                 onClick={() => {
                   setShowUploadModal(false);
@@ -2677,7 +2756,10 @@ export default function Scene({
                     }
                   }, 100);
                 }}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors"
+                className="flex-1 bg-white border-4 border-black text-gray-800 font-bold py-3 px-4 rounded-full hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+                style={{
+                  boxShadow: "6px 6px 0px 0px rgba(0, 0, 0, 1)",
+                }}
               >
                 Cancel
               </button>
@@ -2688,8 +2770,13 @@ export default function Scene({
 
       {/* Text to 3D Modal */}
       {showTextModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
+          <div
+            className="bg-white rounded-3xl border-4 border-black p-8 max-w-md w-full mx-4"
+            style={{
+              boxShadow: "12px 12px 0px 0px rgba(0, 0, 0, 1)",
+            }}
+          >
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
               Generate 3D Model from Text
             </h2>
@@ -2711,7 +2798,7 @@ export default function Scene({
               <div className="mb-4">
                 <label
                   htmlFor="prompt"
-                  className="block text-sm font-medium text-gray-700 mb-2"
+                  className="block text-sm font-bold text-gray-800 mb-2"
                 >
                   Description
                 </label>
@@ -2720,7 +2807,7 @@ export default function Scene({
                   name="prompt"
                   rows={4}
                   placeholder="e.g., a medieval sword with golden handle, a cute robot character, a fantasy castle..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-gray-800"
+                  className="w-full px-4 py-3 border-4 border-black rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-400 resize-none text-gray-800"
                   maxLength={600}
                   required
                 />
@@ -2729,21 +2816,21 @@ export default function Scene({
               <div className="mb-6">
                 <label
                   htmlFor="artStyle"
-                  className="block text-sm font-medium text-gray-700 mb-2"
+                  className="block text-sm font-bold text-gray-800 mb-2"
                 >
                   Art Style
                 </label>
                 <select
                   id="artStyle"
                   name="artStyle"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-800"
+                  className="w-full px-4 py-3 border-4 border-black rounded-xl focus:outline-none focus:ring-2 focus:ring-gray-400 text-gray-800 font-medium"
                 >
                   <option value="realistic">Realistic</option>
                   <option value="sculpture">Sculpture</option>
                 </select>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-4">
                 <button
                   type="button"
                   onClick={() => {
@@ -2754,13 +2841,19 @@ export default function Scene({
                       }
                     }, 100);
                   }}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors"
+                  className="flex-1 bg-white border-4 border-black text-gray-800 font-bold py-3 px-4 rounded-full hover:translate-x-[2px] hover:translate-y-[2px] transition-all"
+                  style={{
+                    boxShadow: "6px 6px 0px 0px rgba(0, 0, 0, 1)",
+                  }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                  className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 border-4 border-black text-white font-bold py-3 px-4 rounded-full hover:translate-x-[2px] hover:translate-y-[2px] hover:from-purple-600 hover:to-pink-600 transition-all"
+                  style={{
+                    boxShadow: "6px 6px 0px 0px rgba(0, 0, 0, 1)",
+                  }}
                 >
                   Generate
                 </button>
