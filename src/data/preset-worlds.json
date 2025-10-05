@@ -38,5 +38,15 @@
     "backgroundMusic": "/haunted_campus.mp3",
     "walkingSound": "/sfx/walking_wood.mp3",
     "isPreset": true
+  },
+  {
+    "id": "c627cf51-b9ad-4548-8ac1-56f13e14440c",
+    "name": "HackHarvard",
+    "thumbnailUrl": "https://cdn.marble.worldlabs.ai/c627cf51-b9ad-4548-8ac1-56f13e14440c/f4b3ab17_image_prompt.jpeg",
+    "splatUrl": "https://cdn.marble.worldlabs.ai/c627cf51-b9ad-4548-8ac1-56f13e14440c/3dce471b-1171-44c3-a817-2a17aef4e59f_ceramic.ply",
+    "meshUrl": null,
+    "backgroundMusic": null,
+    "walkingSound": "/sfx/walking_wood.mp3",
+    "isPreset": true
   }
 ]
