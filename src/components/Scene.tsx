@@ -1674,6 +1674,7 @@ export default function Scene({
           if (statusRes.ok) {
             const statusData = await statusRes.json();
             const progress = statusData.progress || 0;
+            const provider = statusData.provider || 'meshy';
             setGenerationProgress(Math.max(5, Math.min(95, progress)));
 
             if (progress > 0 && progress < 100) {

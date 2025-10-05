@@ -57,6 +57,7 @@ async function createTripo3DTask(imageUrl: string): Promise<string | null> {
       body: JSON.stringify({
         type: "image_to_model",
         file: filePayload,
+        face_limit: 3000,
       }),
     });
 
@@ -131,6 +132,8 @@ async function pollTripo3DTask(taskId: string, originalMeshyId: string, maxAttem
         provider: "tripo3d",
         switched_to_tripo3d: true,
         updated_at: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(), // For status endpoint compatibility
+        receivedViaWebhook: true, // Mark as fresh data so status endpoint returns it
       };
 
       if (task.status === "success") {
@@ -359,7 +362,7 @@ export async function POST(request: NextRequest) {
         console.log("[Fallback] Starting 1-minute timeout timer for Meshy task:", id);
         
         // Wait 1 minute (60 seconds)
-        await sleep(60000);
+        await sleep(1000);
         
         // Check if Meshy task completed
         const statusDir = path.join(process.cwd(), "meshy_tasks");
@@ -418,6 +421,8 @@ export async function POST(request: NextRequest) {
             switched_to_tripo3d: true,
             fallback_reason: "Meshy timeout after 1 minute",
             switched_at: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(), // For status endpoint compatibility
+            receivedViaWebhook: true, // Mark as fresh data so status endpoint returns it
           }, null, 2)
         );
         
