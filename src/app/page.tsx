@@ -320,9 +320,13 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
       {/* Hero Section */}
       <header className="px-8 py-16 text-center">
-        <h1 className="text-6xl md:text-7xl font-serif italic text-gray-800 mb-4">
-          Doodle World
-        </h1>
+        <div className="flex justify-center mb-6">
+          <img
+            src="/logo transparent.png"
+            alt="Doodle World"
+            className="h-[300px] w-auto object-contain"
+          />
+        </div>
         <p className="text-xl text-gray-600 max-w-2xl mx-auto">
           Step into an immersive 3D world where imagination is your only limit
         </p>
@@ -334,17 +338,33 @@ export default function Home() {
         <div className="max-w-7xl mx-auto mb-8">
           <button
             onClick={() => setIsDialogOpen(true)}
-            className="w-full bg-gradient-to-br from-purple-500 via-purple-600 to-pink-500 rounded-3xl p-4 shadow-lg hover:shadow-xl transition-all cursor-pointer relative overflow-hidden"
+            className="w-full bg-white border-4 border-black rounded-full p-8 transition-all cursor-pointer hover:translate-x-[2px] hover:translate-y-[2px]"
+            style={{
+              boxShadow: "8px 8px 0px 0px rgba(0, 0, 0, 1)",
+            }}
           >
-            <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/20 to-white/0 opacity-50"></div>
-            <div className="bg-white rounded-2xl p-6 transition-transform relative">
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                ✨ Create Your Own World
-              </h2>
-              <p className="text-gray-600">
-                Generate custom 3D environments from your own images and
-                imagination
-              </p>
+            <div className="flex items-center justify-center gap-4">
+              <svg
+                className="w-8 h-8"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              <div className="text-left">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Create Your Own World
+                </h2>
+                <p className="text-gray-600 text-sm">
+                  Generate custom 3D environments from your own images
+                </p>
+              </div>
             </div>
           </button>
         </div>
@@ -370,17 +390,6 @@ export default function Home() {
 
                 // Only render cards within visible range
                 if (absOffset > 4) return null;
-
-                // Cycle through gradient colors
-                const gradients = [
-                  "from-orange-400 to-orange-500",
-                  "from-pink-400 to-pink-500",
-                  "from-green-400 to-green-500",
-                  "from-yellow-400 to-yellow-500",
-                  "from-blue-400 to-blue-500",
-                  "from-purple-400 to-purple-500",
-                ];
-                const gradient = gradients[index % gradients.length];
 
                 // Calculate transforms based on position - mimicking reference carousel
                 const isCenter = offset === 0;
@@ -422,35 +431,36 @@ export default function Home() {
                   >
                     <Link
                       href={`/world/${world.id}`}
-                      className={`bg-gradient-to-br ${gradient} rounded-3xl p-2 shadow-2xl transition-shadow cursor-pointer block`}
-                      style={{ pointerEvents: isCenter ? "auto" : "none" }}
+                      className="bg-white border-4 border-black rounded-3xl cursor-pointer block overflow-hidden transition-transform hover:translate-x-[2px] hover:translate-y-[2px]"
+                      style={{
+                        pointerEvents: isCenter ? "auto" : "none",
+                        boxShadow: "8px 8px 0px 0px rgba(0, 0, 0, 1)",
+                      }}
                     >
-                      <div className="bg-white rounded-2xl overflow-hidden">
-                        {world.thumbnailUrl && (
-                          <div className="aspect-video bg-gray-200 relative">
-                            <img
-                              src={world.thumbnailUrl}
-                              alt={world.name}
-                              className="w-full h-full object-cover"
-                              crossOrigin="anonymous"
-                            />
-                            {world.isPreset && (
-                              <span className="absolute top-2 right-2 bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-semibold">
-                                Preset
-                              </span>
-                            )}
-                          </div>
-                        )}
-                        <div className="p-6">
-                          <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                            {world.name}
-                          </h2>
-                          <p className="text-sm text-gray-500">
-                            {world.isPreset
-                              ? "Built-in World"
-                              : new Date(world.createdAt).toLocaleDateString()}
-                          </p>
+                      {world.thumbnailUrl && (
+                        <div className="aspect-video bg-gray-200 relative">
+                          <img
+                            src={world.thumbnailUrl}
+                            alt={world.name}
+                            className="w-full h-full object-cover"
+                            crossOrigin="anonymous"
+                          />
+                          {world.isPreset && (
+                            <span className="absolute top-4 right-4 bg-black text-white px-4 py-2 rounded-full text-xs font-bold border-2 border-white">
+                              Preset
+                            </span>
+                          )}
                         </div>
+                      )}
+                      <div className="p-6 bg-white">
+                        <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                          {world.name}
+                        </h2>
+                        <p className="text-sm text-gray-500">
+                          {world.isPreset
+                            ? "Built-in World"
+                            : new Date(world.createdAt).toLocaleDateString()}
+                        </p>
                       </div>
                     </Link>
                   </div>
@@ -666,7 +676,12 @@ function JobCard({ job }: { job: Job }) {
   const [isExpanded, setIsExpanded] = useState(true);
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg border-2 border-purple-200 overflow-hidden">
+    <div
+      className="bg-white rounded-2xl border-4 border-black overflow-hidden"
+      style={{
+        boxShadow: "8px 8px 0px 0px rgba(0, 0, 0, 1)",
+      }}
+    >
       {/* Header - always visible */}
       <div
         className="p-6 cursor-pointer hover:bg-gray-50 transition-colors"
