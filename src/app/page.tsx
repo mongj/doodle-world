@@ -556,7 +556,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="py-8 text-center text-gray-600 text-sm">
-        <p>Built with Next.js, Three.js, and Rapier Physics</p>
+        <p>Built with ❤️ in Cambridge, MA</p>
       </footer>
 
       {/* Dialog Modal */}
