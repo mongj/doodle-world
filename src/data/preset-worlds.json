@@ -28,5 +28,15 @@
     "backgroundMusic": "/atlantis.mp3",
     "walkingSound": "/sfx/walking_stone.mp3",
     "isPreset": true
+  },
+  {
+    "id": "1e147a74-6424-48d8-a5f4-c14d2b7b1ceb",
+    "name": "Halloween at SOCH",
+    "thumbnailUrl": "/cdn-proxy/1e147a74-6424-48d8-a5f4-c14d2b7b1ceb/26208878_image_prompt.png",
+    "splatUrl": "/cdn-proxy/1e147a74-6424-48d8-a5f4-c14d2b7b1ceb/7dfc4aef-f4c1-4ee0-9eb6-41f550ec3172_ceramic.ply",
+    "meshUrl": "/gcs-proxy/doodle-world-static/conversions/converted_20251005_052233.glb",
+    "backgroundMusic": "/haunted_campus.mp3",
+    "walkingSound": "/sfx/walking_wood.mp3",
+    "isPreset": true
   }
 ]
