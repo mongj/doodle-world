@@ -1,6 +1,6 @@
 import { proxify } from "@/utils/cdn-proxy";
 import { NextRequest, NextResponse } from "next/server";
-import { Storage } from "@google-cloud/storage";
+import { getStorage } from "@/utils/gcs";
 
 const API_BASE_URL = "https://marble2-kgw-prod-iac1.wlt-ai.art/api/v1";
 const BEARER_TOKEN = process.env.MARBLE_API_TOKEN;
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const storage = new Storage();
+    const storage = getStorage();
     const bucket = storage.bucket(GCS_BUCKET_NAME);
     const file = bucket.file(`jobs/${jobId}.json`);
 

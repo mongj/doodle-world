@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Storage } from "@google-cloud/storage";
+import { getStorage } from "@/utils/gcs";
 
 const MESHY_API_KEY = process.env.MESHY_API_KEY;
 const WEBHOOK_TIMEOUT_MS = 30000; // 30 seconds - if webhook is older, fall back to API
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Read from task-specific file first (webhook data)
-    const storage = new Storage();
+    const storage = getStorage();
     const bucket = storage.bucket(GCS_BUCKET_NAME);
     const taskFile = bucket.file(`meshy_tasks/${taskId}.json`);
     

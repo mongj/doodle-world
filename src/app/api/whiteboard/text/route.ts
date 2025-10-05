@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Storage } from "@google-cloud/storage";
+import { getStorage } from "@/utils/gcs";
 
 const MESHY_API_KEY = process.env.MESHY_API_KEY;
 const TEXT_TO_3D_URL = "https://api.meshy.ai/openapi/v2/text-to-3d";
@@ -57,7 +57,7 @@ async function pollTripo3DTextTask(taskId: string, originalMeshyId: string, mesh
   console.log("[Tripo3D Text] Starting to poll task:", taskId);
   console.log("[Tripo3D Text] Meshy stopped at:", meshyLastProgress, "% - will map Tripo3D progress to", meshyLastProgress, "-100%");
   
-  const storage = new Storage();
+  const storage = getStorage();
   const bucket = storage.bucket(GCS_BUCKET_NAME);
   // Update the ORIGINAL Meshy task file so frontend polling continues to work
   const file = bucket.file(`meshy_tasks/${originalMeshyId}.json`);
@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Initialize status file with PENDING status (use task-specific file)
-    const storage = new Storage();
+    const storage = getStorage();
     const bucket = storage.bucket(GCS_BUCKET_NAME);
     const taskFile = bucket.file(`meshy_tasks/${taskId}.json`);
     const initialStatus = {
@@ -265,7 +265,7 @@ export async function POST(request: NextRequest) {
           await sleep(10000);
           
           // Check if Meshy task completed
-          const storage = new Storage();
+          const storage = getStorage();
           const bucket = storage.bucket(GCS_BUCKET_NAME);
           const meshyTaskFile = bucket.file(`meshy_tasks/${taskId}.json`);
           let currentStatus: any = {};
@@ -376,7 +376,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if we have a status file (either from webhook or Tripo3D polling)
-    const storage = new Storage();
+    const storage = getStorage();
     const bucket = storage.bucket(GCS_BUCKET_NAME);
     const taskFile = bucket.file(`meshy_tasks/${taskId}.json`);
     

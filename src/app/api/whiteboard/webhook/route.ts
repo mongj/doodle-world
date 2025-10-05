@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Storage } from "@google-cloud/storage";
+import { getStorage } from "@/utils/gcs";
 
 const GCS_BUCKET_NAME = "doodle-world-static";
 
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing task ID" }, { status: 400 });
     }
 
-    const storage = new Storage();
+    const storage = getStorage();
     const bucket = storage.bucket(GCS_BUCKET_NAME);
     const taskFile = bucket.file(`meshy_tasks/${taskId}.json`);
     

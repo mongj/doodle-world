@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { Storage } from "@google-cloud/storage";
+import { getStorage } from "@/utils/gcs";
 
 const GCS_BUCKET_NAME = "doodle-world-static";
 
 export async function GET() {
   try {
-    const storage = new Storage();
+    const storage = getStorage();
     const bucket = storage.bucket(GCS_BUCKET_NAME);
     
     // List all JSON files in the jobs/ directory

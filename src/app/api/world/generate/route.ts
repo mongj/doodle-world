@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Storage } from "@google-cloud/storage";
+import { getStorage } from "@/utils/gcs";
 
 const API_BASE_URL = "https://marble2-kgw-prod-iac1.wlt-ai.art/api/v1";
 const BEARER_TOKEN = process.env.MARBLE_API_TOKEN;
@@ -120,6 +120,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Construct request body matching Marble API spec
+    // Build prompt object conditionally - don't include null fields
+    const prompt: any = {
+      is_pano: false,
+    };
+    
+    if (textPrompt && textPrompt.length > 0) {
+      prompt.text_prompt = textPrompt;
+    }
+    
+    if (imageBase64) {
+      prompt.image_prompt = {
+        data_base64: imageBase64,
+        extension: extension,
+      };
+    }
+    
     const body = {
       id: "",
       display_name: null,
@@ -130,16 +146,7 @@ export async function POST(request: NextRequest) {
       generation_input: {
         seed: null,
         model: model,
-        prompt: {
-          text_prompt: textPrompt && textPrompt.length > 0 ? textPrompt : null,
-          image_prompt: imageBase64
-            ? {
-                data_base64: imageBase64,
-                extension: extension,
-              }
-            : null,
-          is_pano: false,
-        },
+        prompt: prompt,
       },
       permission: {
         public: true,
@@ -180,7 +187,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Store in GCS bucket for persistence
-    const storage = new Storage();
+    const storage = getStorage();
     const bucket = storage.bucket(GCS_BUCKET_NAME);
     const file = bucket.file(`jobs/${jobId}.json`);
 

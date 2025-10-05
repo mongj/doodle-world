@@ -1,7 +1,7 @@
 import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
-import { Storage } from "@google-cloud/storage";
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { getStorage } from "@/utils/gcs";
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const GCS_BUCKET_NAME = "doodle-world-static";
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     // Upload to Google Cloud Storage
     console.log(`[GCS] Uploading to bucket: ${GCS_BUCKET_NAME}/${filename}`);
 
-    const storage = new Storage();
+    const storage = getStorage();
     const bucket = storage.bucket(GCS_BUCKET_NAME);
     const blob = bucket.file(filename);
 
