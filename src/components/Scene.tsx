@@ -44,7 +44,7 @@ const CONFIG = {
     SPLAT_SCALE: 3,
   },
   AUDIO_FILES: {
-    BOUNCE: "/bounce.mp3",
+    BOUNCE: "/quack.mp3",
   },
   JENGA: {
     ENABLED: false,
@@ -181,6 +181,7 @@ export default function Scene({
   const [generationProgress, setGenerationProgress] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState("Loading scene...");
+  const [isNoclipActive, setIsNoclipActive] = useState(false);
   // Determine mesh rotation based on URL source (Marble meshes vs our converted meshes)
   const isMarbleMesh = isMarbleMeshUrl(meshUrl);
   const meshRotation = isMarbleMesh
@@ -212,7 +213,7 @@ export default function Scene({
       name: "Duck",
       modelUrl: "/assets/homemade/duck.glb",
       sfx: ["/sfx/dog_1.mp3"], // Placeholder - add duck sounds later
-      scale: 0.3, // Smaller duck
+      scale: 0.1, // Smaller duck
     },
     // Gandalf animations
     {
@@ -1207,6 +1208,9 @@ export default function Scene({
 
       (window as any).__LOAD_DYNAMIC_MODEL__ = loadDynamicModel;
 
+      // Function to update noclip state in React
+      (window as any).__UPDATE_NOCLIP_STATE__ = setIsNoclipActive;
+
       // Function to clear all spawned dynamic models and projectiles
       function clearAllDynamicModels() {
         console.log(`Clearing ${dynamicModels.length} dynamic models and ${projectiles.length} projectiles...`);
@@ -1280,6 +1284,7 @@ export default function Scene({
       // Input handling
       const keyState: Record<string, boolean> = {};
       let debugMode = false;
+      let noclipMode = false;
       
       // Function to clear all key states (called when modals open)
       const clearKeyState = () => {
@@ -1318,7 +1323,29 @@ export default function Scene({
           toggleDebugMode();
         }
 
-        if (e.code === "Space" && playerBody) {
+        if (e.code === "KeyN") {
+          noclipMode = !noclipMode;
+          console.log(`Noclip mode ${noclipMode ? 'ENABLED' : 'DISABLED'}`);
+          
+          // Update React state for UI
+          if ((window as any).__UPDATE_NOCLIP_STATE__) {
+            (window as any).__UPDATE_NOCLIP_STATE__(noclipMode);
+          }
+          
+          // Enable/disable physics body
+          if (playerBody) {
+            if (noclipMode) {
+              // Disable gravity and collisions
+              playerBody.setGravityScale(0.0, true);
+              playerBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+            } else {
+              // Re-enable gravity
+              playerBody.setGravityScale(1.0, true);
+            }
+          }
+        }
+
+        if (e.code === "Space" && playerBody && !noclipMode) {
           if (isPlayerGrounded()) {
             const v = playerBody.linvel();
             playerBody.setLinvel(
@@ -1448,42 +1475,84 @@ export default function Scene({
       function updateMovement() {
         if (!controls.isLocked || !playerBody) return;
 
-        const forward = new THREE.Vector3();
-        camera.getWorldDirection(forward);
-        forward.y = 0;
-        forward.normalize();
+        if (noclipMode) {
+          // Noclip mode: Free flight in all directions
+          const forward = new THREE.Vector3();
+          camera.getWorldDirection(forward);
+          forward.normalize();
 
-        const right = new THREE.Vector3();
-        right.crossVectors(forward, camera.up).normalize();
+          const right = new THREE.Vector3();
+          right.crossVectors(forward, camera.up).normalize();
 
-        const moveDir = new THREE.Vector3();
-        if (keyState.KeyW) moveDir.add(forward);
-        if (keyState.KeyS) moveDir.sub(forward);
-        if (keyState.KeyD) moveDir.add(right);
-        if (keyState.KeyA) moveDir.sub(right);
+          const up = new THREE.Vector3(0, 1, 0);
 
-        let targetX = 0;
-        let targetZ = 0;
-        const isMovingHorizontally = moveDir.lengthSq() > 0;
-        if (isMovingHorizontally) {
-          moveDir.normalize().multiplyScalar(CONFIG.MOVE_SPEED);
-          targetX = moveDir.x;
-          targetZ = moveDir.z;
-        }
+          const moveDir = new THREE.Vector3();
+          if (keyState.KeyW) moveDir.add(forward);
+          if (keyState.KeyS) moveDir.sub(forward);
+          if (keyState.KeyD) moveDir.add(right);
+          if (keyState.KeyA) moveDir.sub(right);
+          
+          // In noclip, Space goes up and Shift goes down
+          if (keyState.Space) moveDir.add(up);
+          if (keyState.ShiftLeft || keyState.ShiftRight) moveDir.sub(up);
 
-        const current = playerBody.linvel();
-        let targetY = current.y;
-        if (keyState.KeyR) targetY += CONFIG.MOVE_SPEED;
-        if (keyState.KeyF) targetY -= CONFIG.MOVE_SPEED;
+          // Also keep R/F for up/down
+          if (keyState.KeyR) moveDir.add(up);
+          if (keyState.KeyF) moveDir.sub(up);
 
-        playerBody.setLinvel({ x: targetX, y: targetY, z: targetZ }, true);
+          let targetX = 0;
+          let targetY = 0;
+          let targetZ = 0;
 
-        // Handle walking sound
-        const grounded = isPlayerGrounded();
-        if (isMovingHorizontally && grounded && audioBuffers.walking) {
-          playWalkingSound();
+          if (moveDir.lengthSq() > 0) {
+            // Faster movement in noclip mode
+            moveDir.normalize().multiplyScalar(CONFIG.MOVE_SPEED * 2);
+            targetX = moveDir.x;
+            targetY = moveDir.y;
+            targetZ = moveDir.z;
+          }
+
+          playerBody.setLinvel({ x: targetX, y: targetY, z: targetZ }, true);
+          stopWalkingSound(); // No walking sound in noclip
         } else {
-          stopWalkingSound();
+          // Normal mode: Standard movement with gravity
+          const forward = new THREE.Vector3();
+          camera.getWorldDirection(forward);
+          forward.y = 0;
+          forward.normalize();
+
+          const right = new THREE.Vector3();
+          right.crossVectors(forward, camera.up).normalize();
+
+          const moveDir = new THREE.Vector3();
+          if (keyState.KeyW) moveDir.add(forward);
+          if (keyState.KeyS) moveDir.sub(forward);
+          if (keyState.KeyD) moveDir.add(right);
+          if (keyState.KeyA) moveDir.sub(right);
+
+          let targetX = 0;
+          let targetZ = 0;
+          const isMovingHorizontally = moveDir.lengthSq() > 0;
+          if (isMovingHorizontally) {
+            moveDir.normalize().multiplyScalar(CONFIG.MOVE_SPEED);
+            targetX = moveDir.x;
+            targetZ = moveDir.z;
+          }
+
+          const current = playerBody.linvel();
+          let targetY = current.y;
+          if (keyState.KeyR) targetY += CONFIG.MOVE_SPEED;
+          if (keyState.KeyF) targetY -= CONFIG.MOVE_SPEED;
+
+          playerBody.setLinvel({ x: targetX, y: targetY, z: targetZ }, true);
+
+          // Handle walking sound
+          const grounded = isPlayerGrounded();
+          if (isMovingHorizontally && grounded && audioBuffers.walking) {
+            playWalkingSound();
+          } else {
+            stopWalkingSound();
+          }
         }
       }
 
@@ -2333,6 +2402,9 @@ export default function Scene({
                     <span className="font-semibold">M:</span> Debug
                   </p>
                   <p>
+                    <span className="font-semibold">N:</span> Noclip
+                  </p>
+                  <p>
                     <span className="font-semibold">L:</span> Whiteboard
                   </p>
                   <p>
@@ -2367,7 +2439,7 @@ export default function Scene({
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
             <p className="text-white text-sm font-medium drop-shadow-lg">
               WASD: Move • R/F: Up/Down • Space: Jump • Click: Shoot/Grab •
-              Arrows: Rotate • .: Launch • M: Debug • L: Whiteboard • U: Upload
+              Arrows: Rotate • .: Launch • M: Debug • N: Noclip • L: Whiteboard • U: Upload
               • T: Text • I: Inventory • V: Clear All • H: Home
             </p>
           </div>
@@ -2389,6 +2461,13 @@ export default function Scene({
             </span>
             <span>Z {formatPosition(playerPositionState.z)}</span>
           </div>
+
+          {/* Noclip Indicator */}
+          {isNoclipActive && (
+            <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-full text-base font-bold tracking-wide shadow-2xl backdrop-blur animate-pulse z-20 pointer-events-none">
+              ✈️ NOCLIP MODE ACTIVE
+            </div>
+          )}
 
           {/* Model Generation Progress Bar */}
           {isGenerating && (
