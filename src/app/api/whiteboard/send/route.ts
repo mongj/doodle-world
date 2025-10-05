@@ -245,7 +245,7 @@ export async function POST(request: NextRequest) {
         
         // Use custom prompt or default prompt
         const promptText = custom_prompt || 
-          "You will be provided with a doodle. Make a 3d model of it. Give it a lot of depth, it should not look like a flat drawing, but a 4d realistic object.";
+          "You will be provided with a doodle. Make a 3d model of it. Give it a lot of depth, it should not look like a flat drawing, but a 4d realistic object. Remove any background.";
         
         console.log("[Gemini] Using prompt:", promptText);
         
