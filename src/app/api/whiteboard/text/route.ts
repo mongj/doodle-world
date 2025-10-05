@@ -27,6 +27,7 @@ async function createTripo3DTextTask(prompt: string): Promise<string | null> {
       body: JSON.stringify({
         type: "text_to_model",
         prompt: prompt,
+        face_limit: 3000,
       }),
     });
 
@@ -52,8 +53,9 @@ async function createTripo3DTextTask(prompt: string): Promise<string | null> {
   }
 }
 
-async function pollTripo3DTextTask(taskId: string, originalMeshyId: string, maxAttempts: number = 80): Promise<any> {
+async function pollTripo3DTextTask(taskId: string, originalMeshyId: string, meshyLastProgress: number = 0, maxAttempts: number = 80): Promise<any> {
   console.log("[Tripo3D Text] Starting to poll task:", taskId);
+  console.log("[Tripo3D Text] Meshy stopped at:", meshyLastProgress, "% - will map Tripo3D progress to", meshyLastProgress, "-100%");
   
   const statusDir = path.join(process.cwd(), "meshy_tasks");
   if (!fs.existsSync(statusDir)) {
@@ -91,13 +93,21 @@ async function pollTripo3DTextTask(taskId: string, originalMeshyId: string, maxA
 
       console.log(`[Tripo3D Text] Task status: ${task.status}, progress: ${task.progress}%`);
 
+      // Map Tripo3D progress to continue from where Meshy left off
+      // Formula: displayed = meshyLast + (tripo3d * (100 - meshyLast) / 100)
+      const tripo3dProgress = task.progress || 0;
+      const mappedProgress = Math.round(meshyLastProgress + (tripo3dProgress * (100 - meshyLastProgress) / 100));
+      
+      console.log(`[Tripo3D Text] Raw progress: ${tripo3dProgress}% → Mapped progress: ${mappedProgress}%`);
+
       // Update the original Meshy task file with Tripo3D status
       const currentStatus: any = {
         result: originalMeshyId, // Keep the original ID for frontend
         tripo3d_task_id: taskId,
         status: task.status === "success" ? "SUCCEEDED" : 
                 task.status === "failed" ? "FAILED" : "IN_PROGRESS",
-        progress: task.progress || 0,
+        progress: mappedProgress,
+        raw_tripo3d_progress: tripo3dProgress,
         provider: "tripo3d",
         switched_to_tripo3d: true,
         updated_at: new Date().toISOString(),
@@ -112,12 +122,15 @@ async function pollTripo3DTextTask(taskId: string, originalMeshyId: string, maxA
         console.log(`[Tripo3D Text] Preview URL: ${previewUrl}`);
         
         if (glbUrl) {
+          // Ensure completion status and 100% progress
+          currentStatus.status = "SUCCEEDED";
+          currentStatus.progress = 100;
           currentStatus.model_urls = {
             glb: glbUrl,
             ...(previewUrl && { thumbnail_url: previewUrl }),
           };
           fs.writeFileSync(outputPath, JSON.stringify(currentStatus, null, 2));
-          console.log("[Tripo3D Text] Task completed successfully with GLB URL");
+          console.log("[Tripo3D Text] Task completed successfully - Status: SUCCEEDED, Progress: 100%");
           return task;
         } else {
           console.error("[Tripo3D Text] Task succeeded but no GLB URL found in output!");
@@ -298,6 +311,10 @@ export async function POST(request: NextRequest) {
           
           console.log("[Fallback Text] Tripo3D task created:", tripo3dTaskId);
           
+          // Save the progress Meshy reached before switching
+          const meshyLastProgress = currentStatus.progress || 0;
+          console.log("[Fallback Text] Meshy last progress:", meshyLastProgress, "%");
+          
           // Update the original Meshy file to show we're now using Tripo3D
           fs.writeFileSync(
             meshyTaskFile,
@@ -306,7 +323,8 @@ export async function POST(request: NextRequest) {
               result: taskId, // Keep original Meshy ID
               tripo3d_task_id: tripo3dTaskId,
               status: "IN_PROGRESS",
-              progress: 5,
+              progress: Math.max(meshyLastProgress, 5), // Don't go backwards
+              meshy_last_progress: meshyLastProgress,
               provider: "tripo3d",
               switched_to_tripo3d: true,
               fallback_reason: "Meshy timeout after 1 minute",
@@ -315,7 +333,7 @@ export async function POST(request: NextRequest) {
           );
           
           // Poll Tripo3D task (updates the same file with progress)
-          await pollTripo3DTextTask(tripo3dTaskId, taskId);
+          await pollTripo3DTextTask(tripo3dTaskId, taskId, meshyLastProgress);
           
         } catch (error) {
           console.error("[Fallback Text] Error during fallback process:", error);

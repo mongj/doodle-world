@@ -619,6 +619,9 @@ export default function Scene({
         if (startButtonRef.current && !gameStartedRef.current) {
           startButtonRef.current.style.display = "flex";
         }
+        
+        // Clear all key states when controls unlock (modal opens)
+        clearKeyState();
       });
 
       // Audio system
@@ -1007,6 +1010,13 @@ export default function Scene({
       // Input handling
       const keyState: Record<string, boolean> = {};
       let debugMode = false;
+      
+      // Function to clear all key states (called when modals open)
+      const clearKeyState = () => {
+        for (const key in keyState) {
+          keyState[key] = false;
+        }
+      };
 
       let hover: {
         body: RAPIER.RigidBody | null;
@@ -1026,6 +1036,11 @@ export default function Scene({
       const LAUNCH_SPEED = 15 * GLOBAL_SCALE;
 
       const handleKeyDown = (e: KeyboardEvent) => {
+        // Don't process game controls if pointer is not locked (modal is open)
+        if (!controls.isLocked) {
+          return;
+        }
+
         keyState[e.code] = true;
 
         if (e.code === "KeyM") {
@@ -1083,6 +1098,11 @@ export default function Scene({
       };
 
       const handleKeyUp = (e: KeyboardEvent) => {
+        // Don't process game controls if pointer is not locked (modal is open)
+        if (!controls.isLocked) {
+          return;
+        }
+        
         keyState[e.code] = false;
       };
 
@@ -1648,6 +1668,29 @@ export default function Scene({
 
         if (statusData.status === "SUCCEEDED") {
           previewComplete = true;
+          
+          // If preview was completed by Tripo3D (has glb directly), skip refine and load it
+          if (statusData.provider === "tripo3d" && statusData.model_urls?.glb) {
+            console.log("Preview completed by Tripo3D - loading directly, skipping refine");
+            setGenerationProgress(100);
+            setUploadProgress("Loading model into scene...");
+            
+            if ((window as any).__LOAD_DYNAMIC_MODEL__) {
+              await (window as any).__LOAD_DYNAMIC_MODEL__(
+                statusData.model_urls.glb
+              );
+            }
+            
+            setUploadProgress("✓ Model loaded successfully!");
+            setTimeout(() => {
+              setShowTextModal(false);
+              setUploadProgress("");
+              setIsGenerating(false);
+              setGenerationProgress(0);
+            }, 2000);
+            return; // Exit early, don't go to refine stage
+          }
+          
           break;
         } else if (statusData.status === "FAILED") {
           const errorMsg =
@@ -1661,7 +1704,7 @@ export default function Scene({
         throw new Error("Preview generation timeout");
       }
 
-      // Stage 2: Create refine task
+      // Stage 2: Create refine task (only for Meshy previews)
       setUploadProgress("Adding textures...");
       setGenerationProgress(50);
 
