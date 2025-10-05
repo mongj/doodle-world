@@ -28,14 +28,5 @@
     "backgroundMusic": "/atlantis.mp3",
     "walkingSound": "/sfx/walking_stone.mp3",
     "isPreset": true
-  },
-  {
-    "id": "9fb7c4f7-29fd-413e-99fe-ad82a597b986",
-    "name": "Yosemite Valley",
-    "thumbnailUrl": "/cdn-proxy/9fb7c4f7-29fd-413e-99fe-ad82a597b986/39062897_image_prompt.png",
-    "splatUrl": "/cdn-proxy/9fb7c4f7-29fd-413e-99fe-ad82a597b986/044baa04-eb6b-46d1-afab-1fcf15b144fc_ceramic.ply",
-    "meshUrl": "https://storage.googleapis.com/doodle-world-static/conversions/converted_20251004_212636.glb",
-    "backgroundMusic": "/yosemite.mp3",
-    "isPreset": true
   }
 ]
