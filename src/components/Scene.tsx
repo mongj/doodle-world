@@ -290,7 +290,7 @@ export default function Scene({
   useEffect(() => {
     const handleWhiteboardShortcut = (e: KeyboardEvent) => {
       // Don't handle shortcuts if textarea is focused
-      if (document.body.getAttribute('data-textarea-focused') === 'true') {
+      if (document.body.getAttribute("data-textarea-focused") === "true") {
         return;
       }
 
@@ -559,7 +559,7 @@ export default function Scene({
       // Player
       const playerBody = world.createRigidBody(
         RAPIER.RigidBodyDesc.dynamic()
-          .setTranslation(0, 1, 0)
+          .setTranslation(0, 0.3, 0)
           .lockRotations()
           .setLinearDamping(4.0)
           .setCcdEnabled(true)
