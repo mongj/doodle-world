@@ -212,6 +212,7 @@ export default function Scene({
       name: "Duck",
       modelUrl: "/assets/homemade/duck.glb",
       sfx: ["/sfx/dog_1.mp3"], // Placeholder - add duck sounds later
+      scale: 0.3, // Smaller duck
     },
     // Gandalf animations
     {
@@ -247,6 +248,7 @@ export default function Scene({
       id: "macbook",
       name: "MacBook",
       modelUrl: "/assets/homemade/macbook.glb",
+      scale: 0.4, // Smaller MacBook
     },
     // Mermaid animations
     {
@@ -289,6 +291,7 @@ export default function Scene({
       id: "redbull",
       name: "Red Bull",
       modelUrl: "/assets/homemade/redbull.glb",
+      scale: 0.5, // Smaller Red Bull
     },
     // Santa animations
     {
@@ -966,7 +969,8 @@ export default function Scene({
 
        async function loadDynamicModel(
          url: string,
-         soundUrls?: string[]
+         soundUrls?: string[],
+         customScale?: number
        ): Promise<void> {
          try {
            // Spawn right in front of the user's face at eye level
@@ -1152,13 +1156,15 @@ export default function Scene({
               world.createCollider(defaultCollider, sharedBody);
             } else {
               // Transform to local space
+              // Use custom scale if provided, otherwise use default
+              const modelScale = customScale !== undefined ? customScale : DYNAMIC_MODEL_SCALE;
               const localCenter = center.clone();
               dynamicEntry.root.worldToLocal(localCenter);
-              localCenter.multiplyScalar(DYNAMIC_MODEL_SCALE);
+              localCenter.multiplyScalar(modelScale);
 
               const halfExtents = size
                 .clone()
-                .multiplyScalar(DYNAMIC_MODEL_SCALE * 0.5);
+                .multiplyScalar(modelScale * 0.5);
 
               // Create a single cuboid collider for the entire model (much faster than trimesh)
               const colliderDesc = RAPIER.ColliderDesc.cuboid(
@@ -1175,11 +1181,9 @@ export default function Scene({
           }
 
           // Add entire scene to root (preserves animation hierarchy)
-          gltf.scene.scale.set(
-            DYNAMIC_MODEL_SCALE,
-            DYNAMIC_MODEL_SCALE,
-            DYNAMIC_MODEL_SCALE
-          );
+          // Use custom scale if provided, otherwise use default
+          const modelScale = customScale !== undefined ? customScale : DYNAMIC_MODEL_SCALE;
+          gltf.scene.scale.set(modelScale, modelScale, modelScale);
           gltf.scene.position.set(0, 0, 0);
           gltf.scene.rotation.set(0, 0, 0);
           dynamicEntry.root.add(gltf.scene);
@@ -1483,29 +1487,22 @@ export default function Scene({
         }
       }
 
-      // Projectiles with object pooling and limits
+      // Projectiles with object pooling and limits (now using ducks!)
       const projectiles: Array<{
-        mesh: THREE.Mesh;
+        mesh: THREE.Object3D;
         body: RAPIER.RigidBody;
         lastVelocity: THREE.Vector3;
       }> = [];
       const MAX_PROJECTILES = 50; // Limit to prevent memory issues
-      const projectileGeometry = new THREE.SphereGeometry(
-        CONFIG.PROJECTILE_RADIUS,
-        16,
-        16
-      );
-      const projectileMaterial = new THREE.MeshStandardMaterial({
-        color: 0xff4444,
-      });
+      const DUCK_PROJECTILE_SCALE = 0.2; // Small flying ducks
+      let cachedDuckModel: GLTF | null = null;
 
-      function shootProjectile() {
+      async function shootProjectile() {
         // Remove oldest projectile if at limit
         if (projectiles.length >= MAX_PROJECTILES) {
           const oldest = projectiles.shift();
           if (oldest) {
             scene.remove(oldest.mesh);
-            // Don't dispose geometry/material since they're shared
             try {
               world.removeRigidBody(oldest.body);
             } catch {
@@ -1515,38 +1512,68 @@ export default function Scene({
             projectileBodies.delete(oldest.body.handle);
           }
         }
-        // Reuse shared geometry and material for better performance
-        const mesh = new THREE.Mesh(projectileGeometry, projectileMaterial);
 
-        const forward = new THREE.Vector3();
-        camera.getWorldDirection(forward);
-        forward.normalize();
+        try {
+          // Load duck model (cache it for reuse)
+          if (!cachedDuckModel) {
+            cachedDuckModel = await new Promise<GLTF>((resolve, reject) => {
+              gltfLoader.load(
+                "/assets/homemade/duck.glb",
+                (loaded) => resolve(loaded),
+                undefined,
+                (error) => reject(error)
+              );
+            });
+          }
 
-        const origin = camera.position
-          .clone()
-          .addScaledVector(forward, PROJECTILE_SPAWN_OFFSET);
-        mesh.position.copy(origin);
-        scene.add(mesh);
+          // Clone the duck model
+          const duckMesh = cachedDuckModel.scene.clone(true);
+          setupMaterialsForLighting(duckMesh);
+          duckMesh.scale.set(
+            DUCK_PROJECTILE_SCALE,
+            DUCK_PROJECTILE_SCALE,
+            DUCK_PROJECTILE_SCALE
+          );
 
-        const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
-          .setTranslation(origin.x, origin.y, origin.z)
-          .setCcdEnabled(true);
-        const body = world.createRigidBody(bodyDesc);
-        const colliderDesc = RAPIER.ColliderDesc.ball(
-          CONFIG.PROJECTILE_RADIUS
-        ).setRestitution(CONFIG.PROJECTILE_RESTITUTION);
-        world.createCollider(colliderDesc, body);
+          const forward = new THREE.Vector3();
+          camera.getWorldDirection(forward);
+          forward.normalize();
 
-        const velocity = forward.multiplyScalar(CONFIG.PROJECTILE_SPEED);
-        body.setLinvel(velocity, true);
+          const origin = camera.position
+            .clone()
+            .addScaledVector(forward, PROJECTILE_SPAWN_OFFSET);
+          duckMesh.position.copy(origin);
+          
+          // Orient duck to face forward
+          duckMesh.lookAt(origin.clone().add(forward));
+          
+          scene.add(duckMesh);
 
-        projectiles.push({
-          mesh,
-          body,
-          lastVelocity: velocity.clone(),
-        });
-        bodyToMesh.set(body.handle, mesh);
-        projectileBodies.add(body.handle);
+          const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
+            .setTranslation(origin.x, origin.y, origin.z)
+            .setCcdEnabled(true);
+          const body = world.createRigidBody(bodyDesc);
+          
+          // Use a small sphere collider for the duck
+          const colliderDesc = RAPIER.ColliderDesc.ball(
+            CONFIG.PROJECTILE_RADIUS
+          ).setRestitution(CONFIG.PROJECTILE_RESTITUTION);
+          world.createCollider(colliderDesc, body);
+
+          const velocity = forward.multiplyScalar(CONFIG.PROJECTILE_SPEED);
+          body.setLinvel(velocity, true);
+
+          projectiles.push({
+            mesh: duckMesh,
+            body,
+            lastVelocity: velocity.clone(),
+          });
+          // Store as Object3D in the map (we won't grab ducks anyway)
+          bodyToMesh.set(body.handle, duckMesh as any);
+          projectileBodies.add(body.handle);
+        } catch (error) {
+          console.error("Failed to shoot duck:", error);
+        }
       }
 
       // Animation loop
@@ -1854,14 +1881,11 @@ export default function Scene({
         // Stop walking sound
         stopWalkingSound();
 
-        // Dispose shared projectile resources
-        projectileGeometry.dispose();
-        projectileMaterial.dispose();
-
         // Clear caches
         modelCache.clear();
         audioBufferCache.clear();
         materialCache.clear();
+        cachedDuckModel = null; // Clear duck model cache
 
         // Dispose physics world
         try {
@@ -1899,8 +1923,8 @@ export default function Scene({
     try {
       // Load the model dynamically using the global function
       if ((window as any).__LOAD_DYNAMIC_MODEL__) {
-        await (window as any).__LOAD_DYNAMIC_MODEL__(item.modelUrl, item.sfx);
-        console.log(`Spawned ${item.name} from inventory with sound effects`);
+        await (window as any).__LOAD_DYNAMIC_MODEL__(item.modelUrl, item.sfx, item.scale);
+        console.log(`Spawned ${item.name} from inventory${item.scale ? ` with custom scale ${item.scale}` : ''}`);
       } else {
         console.error("Dynamic model loading not available yet");
       }

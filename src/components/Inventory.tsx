@@ -8,6 +8,7 @@ export interface InventoryItem {
   modelUrl: string;
   icon?: string;
   sfx?: string[];
+  scale?: number; // Custom scale override (default is 1.0)
 }
 
 interface InventoryProps {
