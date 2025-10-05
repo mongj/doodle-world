@@ -28,13 +28,14 @@ export default function Home() {
 
         <div className="space-y-4 text-lg text-gray-600 leading-relaxed">
           <p>
-            We're incredibly grateful for the overwhelming response to Doodle
-            World. Your enthusiasm and creativity exceeded all our expectations!
+            We&apos;re incredibly grateful for the overwhelming response to
+            Doodle World. Your enthusiasm and creativity exceeded all our
+            expectations!
           </p>
           <p>
             Due to the high volume of usage and the associated infrastructure
-            costs, we've had to temporarily pause the service. We're exploring
-            ways to bring Doodle World back in a sustainable form.
+            costs, we&apos;ve had to temporarily pause the service. We&apos;re
+            exploring ways to bring Doodle World back in a sustainable form.
           </p>
           <p className="text-gray-700 font-semibold mt-6">
             Thank you for being part of this journey. ✨
