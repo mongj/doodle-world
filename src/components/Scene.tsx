@@ -15,7 +15,9 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 const Whiteboard = dynamic(() => import("./Whiteboard"), { ssr: false });
 const Inventory = dynamic(() => import("./Inventory"), { ssr: false });
-const TaskProgressList = dynamic(() => import("./TaskProgressList"), { ssr: false });
+const TaskProgressList = dynamic(() => import("./TaskProgressList"), {
+  ssr: false,
+});
 
 import type { InventoryItem } from "./Inventory";
 import type { Task } from "./TaskProgressList";
@@ -208,17 +210,20 @@ export default function Scene({
 
   // Task management helpers
   const addTask = (id: string, message: string) => {
-    setTasks(prev => [...prev, { id, progress: 1, message, status: "processing" }]);
+    setTasks((prev) => [
+      ...prev,
+      { id, progress: 1, message, status: "processing" },
+    ]);
   };
 
   const updateTask = (id: string, updates: Partial<Task>) => {
-    setTasks(prev => prev.map(task => 
-      task.id === id ? { ...task, ...updates } : task
-    ));
+    setTasks((prev) =>
+      prev.map((task) => (task.id === id ? { ...task, ...updates } : task))
+    );
   };
 
   const removeTask = (id: string) => {
-    setTasks(prev => prev.filter(task => task.id !== id));
+    setTasks((prev) => prev.filter((task) => task.id !== id));
   };
 
   // Inventory items - easily extensible for future generated models
@@ -252,7 +257,8 @@ export default function Scene({
     {
       id: "gandalf-spin-jump",
       name: "Gandalf (Spin Jump)",
-      modelUrl: "/assets/homemade/gandalf/Animation_360_Power_Spin_Jump_withSkin.glb",
+      modelUrl:
+        "/assets/homemade/gandalf/Animation_360_Power_Spin_Jump_withSkin.glb",
       sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3"],
     },
     {
@@ -294,7 +300,8 @@ export default function Scene({
     {
       id: "mermaid-spin-jump",
       name: "Mermaid (Spin Jump)",
-      modelUrl: "/assets/homemade/mermaid/Animation_360_Power_Spin_Jump_withSkin.glb",
+      modelUrl:
+        "/assets/homemade/mermaid/Animation_360_Power_Spin_Jump_withSkin.glb",
       sfx: ["/sfx/furry_1.mp3"],
     },
     {
@@ -325,7 +332,8 @@ export default function Scene({
     {
       id: "santa-spin-jump",
       name: "Santa (Spin Jump)",
-      modelUrl: "/assets/homemade/santa/Animation_360_Power_Spin_Jump_withSkin.glb",
+      modelUrl:
+        "/assets/homemade/santa/Animation_360_Power_Spin_Jump_withSkin.glb",
       sfx: ["/sfx/orc_3.mp3"],
     },
   ];
@@ -583,13 +591,13 @@ export default function Scene({
       // Jenga tower
       const jengaBlocks: Array<{ mesh: THREE.Mesh; body: RAPIER.RigidBody }> =
         [];
-        const dynamicModels: Array<{
-          root: THREE.Object3D;
-          body: RAPIER.RigidBody;
-          lastVelocity: THREE.Vector3;
-          soundEffects?: AudioBuffer[];
-          mixer?: THREE.AnimationMixer;
-        }> = [];
+      const dynamicModels: Array<{
+        root: THREE.Object3D;
+        body: RAPIER.RigidBody;
+        lastVelocity: THREE.Vector3;
+        soundEffects?: AudioBuffer[];
+        mixer?: THREE.AnimationMixer;
+      }> = [];
       const bodyToMesh = new Map<number, THREE.Mesh>();
       const projectileBodies = new Set<number>();
       const meshToBody = new Map<THREE.Mesh, RAPIER.RigidBody>();
@@ -726,7 +734,7 @@ export default function Scene({
         if (startButtonRef.current && !gameStartedRef.current) {
           startButtonRef.current.style.display = "flex";
         }
-        
+
         // Clear all key states when controls unlock (modal opens)
         clearKeyState();
       });
@@ -908,7 +916,17 @@ export default function Scene({
       const gltfLoader = new GLTFLoader();
       setLoadingMessage("Loading collision mesh...");
 
-      gltfLoader.load(meshUrl, (gltf) => {
+      // Check if mesh is cached
+      const worldCache = (window as any).__WORLD_CACHE__;
+      let meshLoadUrl = meshUrl;
+      if (worldCache && worldCache.has(meshUrl)) {
+        console.log("[WorldCache] Using cached mesh:", meshUrl);
+        const cachedData = worldCache.get(meshUrl);
+        const blob = new Blob([cachedData], { type: "model/gltf-binary" });
+        meshLoadUrl = URL.createObjectURL(blob);
+      }
+
+      gltfLoader.load(meshLoadUrl, (gltf) => {
         environment = gltf.scene;
         environment.scale.set(-1, -1, 1);
         environment.rotation.set(
@@ -959,8 +977,19 @@ export default function Scene({
         setLoadingMessage("Loading Gaussian splats...");
       });
 
+      // Check if splat is cached
+      let splatLoadUrl = splatUrl;
+      if (worldCache && worldCache.has(splatUrl)) {
+        console.log("[WorldCache] Using cached splat:", splatUrl);
+        const cachedData = worldCache.get(splatUrl);
+        const blob = new Blob([cachedData], {
+          type: "application/octet-stream",
+        });
+        splatLoadUrl = URL.createObjectURL(blob);
+      }
+
       splatMesh = new SplatMesh({
-        url: splatUrl,
+        url: splatLoadUrl,
         onLoad: () => {
           console.log(
             `✓ Gaussian splats loaded (${splatMesh!.numSplats} splats)`
@@ -983,21 +1012,21 @@ export default function Scene({
         Array<{ bone: THREE.Bone; body: RAPIER.RigidBody }>
       > = {};
 
-       async function loadDynamicModel(
-         url: string,
-         soundUrls?: string[],
-         customScale?: number
-       ): Promise<void> {
-         try {
-           // Spawn right in front of the user's face at eye level
-           const forward = new THREE.Vector3();
-           camera.getWorldDirection(forward);
-           forward.normalize();
-           
-           // Spawn 1.5 units in front at eye level (closer and more visible)
-           const spawnPosition = camera.position
-             .clone()
-             .addScaledVector(forward, 1.5);
+      async function loadDynamicModel(
+        url: string,
+        soundUrls?: string[],
+        customScale?: number
+      ): Promise<void> {
+        try {
+          // Spawn right in front of the user's face at eye level
+          const forward = new THREE.Vector3();
+          camera.getWorldDirection(forward);
+          forward.normalize();
+
+          // Spawn 1.5 units in front at eye level (closer and more visible)
+          const spawnPosition = camera.position
+            .clone()
+            .addScaledVector(forward, 1.5);
 
           // Load sound effects if provided (with caching)
           let soundBuffers: AudioBuffer[] | undefined;
@@ -1112,14 +1141,16 @@ export default function Scene({
           if (gltf.animations && gltf.animations.length > 0) {
             const mixer = new THREE.AnimationMixer(gltf.scene);
             dynamicEntry.mixer = mixer;
-            
+
             // Play all animations (they might be layered)
             gltf.animations.forEach((clip) => {
               const action = mixer.clipAction(clip);
               action.play();
             });
-            
-            console.log(`Started ${gltf.animations.length} animation(s) for model`);
+
+            console.log(
+              `Started ${gltf.animations.length} animation(s) for model`
+            );
           }
 
           // Play spawn sound
@@ -1141,7 +1172,7 @@ export default function Scene({
 
           // Calculate overall bounding box for the entire model (more efficient than per-mesh colliders)
           const overallBox = new THREE.Box3();
-          
+
           if (meshes.length === 0) {
             console.warn("No meshes found in model, creating default collider");
             // Create a default 1x1x1 box if no meshes found
@@ -1161,7 +1192,11 @@ export default function Scene({
             overallBox.getCenter(center);
             overallBox.getSize(size);
 
-            console.log(`Model bounding box - Size: (${size.x.toFixed(2)}, ${size.y.toFixed(2)}, ${size.z.toFixed(2)})`);
+            console.log(
+              `Model bounding box - Size: (${size.x.toFixed(
+                2
+              )}, ${size.y.toFixed(2)}, ${size.z.toFixed(2)})`
+            );
 
             // Check if bounding box is valid
             if (size.x === 0 || size.y === 0 || size.z === 0 || isNaN(size.x)) {
@@ -1173,14 +1208,13 @@ export default function Scene({
             } else {
               // Transform to local space
               // Use custom scale if provided, otherwise use default
-              const modelScale = customScale !== undefined ? customScale : DYNAMIC_MODEL_SCALE;
+              const modelScale =
+                customScale !== undefined ? customScale : DYNAMIC_MODEL_SCALE;
               const localCenter = center.clone();
               dynamicEntry.root.worldToLocal(localCenter);
               localCenter.multiplyScalar(modelScale);
 
-              const halfExtents = size
-                .clone()
-                .multiplyScalar(modelScale * 0.5);
+              const halfExtents = size.clone().multiplyScalar(modelScale * 0.5);
 
               // Create a single cuboid collider for the entire model (much faster than trimesh)
               const colliderDesc = RAPIER.ColliderDesc.cuboid(
@@ -1192,13 +1226,18 @@ export default function Scene({
                 .setFriction(0.8)
                 .setRestitution(0.05);
               world.createCollider(colliderDesc, sharedBody);
-              console.log(`Created physics collider with half-extents: (${halfExtents.x.toFixed(2)}, ${halfExtents.y.toFixed(2)}, ${halfExtents.z.toFixed(2)})`);
+              console.log(
+                `Created physics collider with half-extents: (${halfExtents.x.toFixed(
+                  2
+                )}, ${halfExtents.y.toFixed(2)}, ${halfExtents.z.toFixed(2)})`
+              );
             }
           }
 
           // Add entire scene to root (preserves animation hierarchy)
           // Use custom scale if provided, otherwise use default
-          const modelScale = customScale !== undefined ? customScale : DYNAMIC_MODEL_SCALE;
+          const modelScale =
+            customScale !== undefined ? customScale : DYNAMIC_MODEL_SCALE;
           gltf.scene.scale.set(modelScale, modelScale, modelScale);
           gltf.scene.position.set(0, 0, 0);
           gltf.scene.rotation.set(0, 0, 0);
@@ -1228,29 +1267,31 @@ export default function Scene({
 
       // Function to clear all spawned dynamic models and projectiles
       function clearAllDynamicModels() {
-        console.log(`Clearing ${dynamicModels.length} dynamic models and ${projectiles.length} projectiles...`);
-        
+        console.log(
+          `Clearing ${dynamicModels.length} dynamic models and ${projectiles.length} projectiles...`
+        );
+
         // Remove each model from the scene and physics
         for (const model of dynamicModels) {
           try {
             // Remove from scene
             scene.remove(model.root);
-            
+
             // Dispose of animation mixer
             if (model.mixer) {
               model.mixer.stopAllAction();
             }
-            
+
             // Remove physics body
             try {
               world.removeRigidBody(model.body);
             } catch {
               // Body may already be removed
             }
-            
+
             // Remove from body-to-mesh map
             bodyToMesh.delete(model.body.handle);
-            
+
             // Remove meshes from grabbable list and mesh-to-body map
             model.root.traverse((child) => {
               if ((child as THREE.Mesh).isMesh) {
@@ -1266,20 +1307,20 @@ export default function Scene({
             console.warn("Error removing model:", error);
           }
         }
-        
+
         // Clear all projectiles
         for (const projectile of projectiles) {
           try {
             // Remove from scene
             scene.remove(projectile.mesh);
-            
+
             // Remove physics body
             try {
               world.removeRigidBody(projectile.body);
             } catch {
               // Body may already be removed
             }
-            
+
             // Remove from maps
             bodyToMesh.delete(projectile.body.handle);
             projectileBodies.delete(projectile.body.handle);
@@ -1287,7 +1328,7 @@ export default function Scene({
             console.warn("Error removing projectile:", error);
           }
         }
-        
+
         // Clear the arrays
         dynamicModels.length = 0;
         projectiles.length = 0;
@@ -1300,7 +1341,7 @@ export default function Scene({
       const keyState: Record<string, boolean> = {};
       let debugMode = false;
       let noclipMode = false;
-      
+
       // Function to clear all key states (called when modals open)
       const clearKeyState = () => {
         for (const key in keyState) {
@@ -1340,13 +1381,13 @@ export default function Scene({
 
         if (e.code === "KeyN") {
           noclipMode = !noclipMode;
-          console.log(`Noclip mode ${noclipMode ? 'ENABLED' : 'DISABLED'}`);
-          
+          console.log(`Noclip mode ${noclipMode ? "ENABLED" : "DISABLED"}`);
+
           // Update React state for UI
           if ((window as any).__UPDATE_NOCLIP_STATE__) {
             (window as any).__UPDATE_NOCLIP_STATE__(noclipMode);
           }
-          
+
           // Enable/disable physics body
           if (playerBody) {
             if (noclipMode) {
@@ -1414,7 +1455,7 @@ export default function Scene({
         if (!controls.isLocked) {
           return;
         }
-        
+
         keyState[e.code] = false;
       };
 
@@ -1506,7 +1547,7 @@ export default function Scene({
           if (keyState.KeyS) moveDir.sub(forward);
           if (keyState.KeyD) moveDir.add(right);
           if (keyState.KeyA) moveDir.sub(right);
-          
+
           // In noclip, Space goes up and Shift goes down
           if (keyState.Space) moveDir.add(up);
           if (keyState.ShiftLeft || keyState.ShiftRight) moveDir.sub(up);
@@ -1627,17 +1668,17 @@ export default function Scene({
             .clone()
             .addScaledVector(forward, PROJECTILE_SPAWN_OFFSET);
           duckMesh.position.copy(origin);
-          
+
           // Orient duck to face forward
           duckMesh.lookAt(origin.clone().add(forward));
-          
+
           scene.add(duckMesh);
 
           const bodyDesc = RAPIER.RigidBodyDesc.dynamic()
             .setTranslation(origin.x, origin.y, origin.z)
             .setCcdEnabled(true);
           const body = world.createRigidBody(bodyDesc);
-          
+
           // Use a small sphere collider for the duck
           const colliderDesc = RAPIER.ColliderDesc.ball(
             CONFIG.PROJECTILE_RADIUS
@@ -1971,6 +2012,14 @@ export default function Scene({
         materialCache.clear();
         cachedDuckModel = null; // Clear duck model cache
 
+        // Revoke blob URLs if we created them
+        if (meshLoadUrl !== meshUrl) {
+          URL.revokeObjectURL(meshLoadUrl);
+        }
+        if (splatLoadUrl !== splatUrl) {
+          URL.revokeObjectURL(splatLoadUrl);
+        }
+
         // Dispose physics world
         try {
           if (world && typeof world.free === "function") {
@@ -2007,8 +2056,16 @@ export default function Scene({
     try {
       // Load the model dynamically using the global function
       if ((window as any).__LOAD_DYNAMIC_MODEL__) {
-        await (window as any).__LOAD_DYNAMIC_MODEL__(item.modelUrl, item.sfx, item.scale);
-        console.log(`Spawned ${item.name} from inventory${item.scale ? ` with custom scale ${item.scale}` : ''}`);
+        await (window as any).__LOAD_DYNAMIC_MODEL__(
+          item.modelUrl,
+          item.sfx,
+          item.scale
+        );
+        console.log(
+          `Spawned ${item.name} from inventory${
+            item.scale ? ` with custom scale ${item.scale}` : ""
+          }`
+        );
       } else {
         console.error("Dynamic model loading not available yet");
       }
@@ -2066,7 +2123,10 @@ export default function Scene({
         throw new Error("No preview task ID received");
       }
 
-      updateTask(taskId, { message: "Starting mesh generation...", progress: 5 });
+      updateTask(taskId, {
+        message: "Starting mesh generation...",
+        progress: 5,
+      });
 
       // Poll for preview completion
       const maxTries = 100;
@@ -2085,59 +2145,64 @@ export default function Scene({
 
         const statusData = await statusRes.json();
         const progress = statusData.progress || 0;
-        const displayProgress = Math.max(10, Math.min(45, 10 + progress * 0.35));
-        
+        const displayProgress = Math.max(
+          10,
+          Math.min(45, 10 + progress * 0.35)
+        );
+
         if (progress > 0 && progress < 100) {
-          updateTask(taskId, { 
+          updateTask(taskId, {
             message: `Generating mesh... ${progress}% complete`,
-            progress: displayProgress 
+            progress: displayProgress,
           });
         }
 
         if (statusData.status === "SUCCEEDED") {
           previewComplete = true;
-          
+
           // If preview was completed by Tripo3D (has glb directly), skip refine and load it
           const glbUrl = statusData.model_urls?.glb || statusData.model_url;
           if (statusData.provider === "tripo3d" && glbUrl) {
-            console.log("Preview completed by Tripo3D - loading directly, skipping refine");
-            updateTask(taskId, { 
-              message: "Loading model into scene...", 
+            console.log(
+              "Preview completed by Tripo3D - loading directly, skipping refine"
+            );
+            updateTask(taskId, {
+              message: "Loading model into scene...",
               progress: 100,
-              status: "processing"
+              status: "processing",
             });
-            
+
             if ((window as any).__LOAD_DYNAMIC_MODEL__) {
               await (window as any).__LOAD_DYNAMIC_MODEL__(glbUrl);
             }
-            
-            updateTask(taskId, { 
-              message: "Model loaded successfully!", 
+
+            updateTask(taskId, {
+              message: "Model loaded successfully!",
               status: "completed",
-              progress: 100
+              progress: 100,
             });
             setShowTextModal(false);
             return; // Exit early, don't go to refine stage
           }
-          
+
           break;
         } else if (statusData.status === "FAILED") {
           const errorMsg =
             statusData.task_error?.message || "Preview generation failed";
-          updateTask(taskId, { 
-            message: `Error: ${errorMsg}`, 
+          updateTask(taskId, {
+            message: `Error: ${errorMsg}`,
             status: "error",
-            progress: 0
+            progress: 0,
           });
           throw new Error(errorMsg);
         }
       }
 
       if (!previewComplete) {
-        updateTask(taskId, { 
-          message: "Error: Preview generation timeout", 
+        updateTask(taskId, {
+          message: "Error: Preview generation timeout",
           status: "error",
-          progress: 0
+          progress: 0,
         });
         throw new Error("Preview generation timeout");
       }
@@ -2182,22 +2247,25 @@ export default function Scene({
 
         const statusData = await statusRes.json();
         const progress = statusData.progress || 0;
-        const displayProgress = Math.max(50, Math.min(95, 50 + progress * 0.45));
+        const displayProgress = Math.max(
+          50,
+          Math.min(95, 50 + progress * 0.45)
+        );
 
         if (progress > 0 && progress < 100) {
-          updateTask(taskId, { 
+          updateTask(taskId, {
             message: `Adding textures... ${progress}% complete`,
-            progress: displayProgress
+            progress: displayProgress,
           });
         }
 
         if (statusData.status === "SUCCEEDED") {
           const glbUrl = statusData.model_urls?.glb || statusData.model_url;
           if (glbUrl) {
-            updateTask(taskId, { 
-              message: "Loading model into scene...", 
+            updateTask(taskId, {
+              message: "Loading model into scene...",
               progress: 100,
-              status: "processing"
+              status: "processing",
             });
 
             // Load the model
@@ -2205,10 +2273,10 @@ export default function Scene({
               await (window as any).__LOAD_DYNAMIC_MODEL__(glbUrl);
             }
 
-            updateTask(taskId, { 
-              message: "Model loaded successfully!", 
+            updateTask(taskId, {
+              message: "Model loaded successfully!",
               status: "completed",
-              progress: 100
+              progress: 100,
             });
             setShowTextModal(false);
             setTimeout(() => {
@@ -2223,27 +2291,29 @@ export default function Scene({
         } else if (statusData.status === "FAILED") {
           const errorMsg =
             statusData.task_error?.message || "Texture generation failed";
-          updateTask(taskId, { 
-            message: `Error: ${errorMsg}`, 
+          updateTask(taskId, {
+            message: `Error: ${errorMsg}`,
             status: "error",
-            progress: 0
+            progress: 0,
           });
           throw new Error(errorMsg);
         }
       }
 
-      updateTask(taskId, { 
-        message: "Error: Texture generation timeout", 
+      updateTask(taskId, {
+        message: "Error: Texture generation timeout",
         status: "error",
-        progress: 0
+        progress: 0,
       });
       throw new Error("Texture generation timeout");
     } catch (error) {
       console.error("Error generating model from text:", error);
-      updateTask(taskId, { 
-        message: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      updateTask(taskId, {
+        message: `Error: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
         status: "error",
-        progress: 0
+        progress: 0,
       });
     }
   };
@@ -2296,9 +2366,12 @@ export default function Scene({
       const data = await response.json();
       const backendTaskId = data.id;
       console.log("Meshy task created:", backendTaskId);
-      
-      updateTask(taskId, { message: "Starting 3D generation...", progress: 10 });
-      
+
+      updateTask(taskId, {
+        message: "Starting 3D generation...",
+        progress: 10,
+      });
+
       const progressInterval = setInterval(async () => {
         try {
           const statusRes = await fetch(
@@ -2309,9 +2382,9 @@ export default function Scene({
             const progress = statusData.progress || 0;
 
             if (progress > 0 && progress < 100) {
-              updateTask(taskId, { 
+              updateTask(taskId, {
                 message: `Generating model... ${progress}% complete`,
-                progress: Math.max(5, Math.min(95, progress))
+                progress: Math.max(5, Math.min(95, progress)),
               });
             }
           }
@@ -2338,10 +2411,10 @@ export default function Scene({
           clearInterval(progressInterval);
           const errorMsg =
             statusData.task_error?.message || "Model generation failed";
-          updateTask(taskId, { 
+          updateTask(taskId, {
             message: `Error: ${errorMsg}`,
             status: "error",
-            progress: 0
+            progress: 0,
           });
           throw new Error(errorMsg);
         }
@@ -2351,10 +2424,10 @@ export default function Scene({
 
         if (statusData.status === "SUCCEEDED" && glbUrl) {
           clearInterval(progressInterval);
-          updateTask(taskId, { 
+          updateTask(taskId, {
             message: "Loading model into scene...",
             progress: 100,
-            status: "processing"
+            status: "processing",
           });
 
           // Load the model using the existing function
@@ -2362,10 +2435,10 @@ export default function Scene({
             await (window as any).__LOAD_DYNAMIC_MODEL__(glbUrl);
           }
 
-          updateTask(taskId, { 
+          updateTask(taskId, {
             message: "Model loaded successfully!",
             status: "completed",
-            progress: 100
+            progress: 100,
           });
           setShowUploadModal(false);
           setTimeout(() => {
@@ -2378,18 +2451,20 @@ export default function Scene({
       }
 
       clearInterval(progressInterval);
-      updateTask(taskId, { 
+      updateTask(taskId, {
         message: "Error: Model generation timeout",
         status: "error",
-        progress: 0
+        progress: 0,
       });
       throw new Error("Model generation timeout");
     } catch (error) {
       console.error("Error generating model:", error);
-      updateTask(taskId, { 
-        message: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      updateTask(taskId, {
+        message: `Error: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
         status: "error",
-        progress: 0
+        progress: 0,
       });
     }
   };
@@ -2490,8 +2565,8 @@ export default function Scene({
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
             <p className="text-white text-sm font-medium drop-shadow-lg">
               WASD: Move • R/F: Up/Down • Space: Jump • Click: Shoot/Grab •
-              Arrows: Rotate • .: Launch • M: Debug • N: Noclip • L: Whiteboard • U: Upload
-              • T: Text • I: Inventory • V: Clear All • H: Home
+              Arrows: Rotate • .: Launch • M: Debug • N: Noclip • L: Whiteboard
+              • U: Upload • T: Text • I: Inventory • V: Clear All • H: Home
             </p>
           </div>
 
@@ -2540,24 +2615,28 @@ export default function Scene({
           onGenerationStart={(taskId: string) => {
             addTask(taskId, "Converting drawing to image...");
           }}
-          onGenerationProgress={(taskId: string, progress: number, message: string) => {
-            updateTask(taskId, { 
+          onGenerationProgress={(
+            taskId: string,
+            progress: number,
+            message: string
+          ) => {
+            updateTask(taskId, {
               progress,
               message,
-              status: progress >= 100 ? "completed" : "processing"
+              status: progress >= 100 ? "completed" : "processing",
             });
           }}
           onGenerationComplete={(taskId: string) => {
-            updateTask(taskId, { 
+            updateTask(taskId, {
               status: "completed",
-              progress: 100
+              progress: 100,
             });
           }}
           onGenerationError={(taskId: string, error: string) => {
-            updateTask(taskId, { 
+            updateTask(taskId, {
               status: "error",
               message: `Error: ${error}`,
-              progress: 0
+              progress: 0,
             });
           }}
         />
@@ -2572,7 +2651,7 @@ export default function Scene({
             </h2>
             <p className="text-gray-600 mb-6 text-sm">
               Upload an image (JPG, JPEG, PNG, or WebP) to generate a 3D model
-               Progress will be shown in the top right corner.
+              Progress will be shown in the top right corner.
             </p>
 
             <input
@@ -2615,7 +2694,8 @@ export default function Scene({
               Generate 3D Model from Text
             </h2>
             <p className="text-gray-600 mb-6 text-sm">
-              Describe a 3D object and Meshy AI will generate it for you. Progress will be shown in the top right corner.
+              Describe a 3D object and Meshy AI will generate it for you.
+              Progress will be shown in the top right corner.
             </p>
 
             <form

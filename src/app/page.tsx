@@ -1,6 +1,7 @@
 "use client";
 
 import presetWorldsData from "@/data/preset-worlds.json";
+import { useWorldCacheInit } from "@/hooks/useWorldCacheInit";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -47,6 +48,15 @@ export default function Home() {
   const [worlds, setWorlds] = useState<World[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const pollingInterval = useRef<NodeJS.Timeout | null>(null);
+
+  // Initialize world cache in the background (must be at top level - Rules of Hooks)
+  const { isInitializing: cacheInitializing, showSuccess: cacheReady } =
+    useWorldCacheInit(
+      presetWorldsData.map((w) => ({
+        meshUrl: w.meshUrl,
+        splatUrl: w.splatUrl,
+      }))
+    );
 
   // Initialize worlds from localStorage and always update presets from JSON
   useEffect(() => {
