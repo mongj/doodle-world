@@ -379,10 +379,10 @@ export async function POST(request: NextRequest) {
     // This doesn't block the response
     setTimeout(async () => {
       try {
-        console.log("[Fallback] Starting 1-minute timeout timer for Meshy task:", id);
+        console.log("[Fallback] Starting 10-second timeout timer for Meshy task:", id);
         
-        // Wait 1 minute (60 seconds)
-        await sleep(60000);
+        // Wait 10 seconds
+        await sleep(10000);
         
         // Check if Meshy task completed
         const statusDir = path.join(process.cwd(), "meshy_tasks");
@@ -410,7 +410,7 @@ export async function POST(request: NextRequest) {
         }
         
         // Meshy didn't complete or failed - fallback to Tripo3D
-        console.log("[Fallback] Meshy did not complete in 1 minute, falling back to Tripo3D");
+        console.log("[Fallback] Meshy did not complete in 10 seconds, falling back to Tripo3D");
         console.log(`[Fallback] Current Meshy status: ${currentStatus.status}, progress: ${currentStatus.progress}%`);
         
         if (!TRIPO3D_API_KEY) {
@@ -444,7 +444,7 @@ export async function POST(request: NextRequest) {
             meshy_last_progress: meshyLastProgress,
             provider: "tripo3d",
             switched_to_tripo3d: true,
-            fallback_reason: "Meshy timeout after 1 minute",
+            fallback_reason: "Meshy timeout after 10 seconds",
             switched_at: new Date().toISOString(),
           }, null, 2)
         );
@@ -463,7 +463,7 @@ export async function POST(request: NextRequest) {
       id,
       status: "PENDING",
       provider: "meshy",
-      message: "Task created. Status updates will be received via webhook. Will fallback to Tripo3D if not completed in 1 minute.",
+      message: "Task created. Status updates will be received via webhook. Will fallback to Tripo3D if not completed in 10 seconds.",
     });
   } catch (error) {
     console.error("Error processing image:", error);

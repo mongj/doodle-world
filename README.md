@@ -1,8 +1,114 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<div align="center">
 
-## Environment Variables
+# Doodle World
 
-Create a `.env.local` file in the root directory with the following variables:
+Turn your imagination into physics-enabled, photorealistic 3D worlds you can walk through — from a doodle, a photo, or a sentence.
+
+</div>
+
+---
+
+## ✨ What is this?
+
+Doodle World is a real‑time imagination compiler: you sketch, describe, or drop in a photo, and the browser synthesizes a living space you can walk through, interact with, and score with an AI‑composed soundtrack. It’s a fusion layer where neural rendering, WebAssembly physics, and multi‑model generative AI cooperate to turn raw ideas into spatial experiences in under a minute.
+
+At its core, Doodle World unifies four hard problems into one fluid pipeline:
+
+- Photorealistic scene synthesis via **Gaussian Splats**, letting environments look like captured reality (not plastic game assets) while streaming efficiently to the GPU.
+- Deterministic, high‑throughput **WASM physics (Rapier)** with a fixed‑timestep loop, CCD, and player + object controllers so spaces feel tactile and honest.
+- A resilient, multi‑model **AI content stack** — **Gemini** enriches sketches into depth‑aware images; **Meshy** generates preview and refined PBR models; **Tripo3D** auto‑takes over at the 10s mark if needed, with progress mapped so the UX never stutters.
+- Context‑aware **generative music** via **ElevenLabs**, composing world‑specific ambience that glues mood to matter.
+
+From a user’s perspective: draw it, type it, or upload it — and a minute later you’re there, in first‑person, grabbing objects, tossing them, hearing them bounce, and exploring an environment that didn’t exist a moment ago. From an engineer’s perspective: it’s a micro game engine + AI studio that runs entirely client‑side, COEP/COOP/CORP‑compliant, with neural rendering for visuals, PDAL‑derived GLB colliders for physics, and a hybrid webhook/polling status fabric that makes long‑running generation feel instantaneous.
+
+In short: Doodle World transforms creativity into navigable reality — not just a 3D viewer, but a continuously compiling world where your ideas become places.
+
+---
+
+## 🧠 High-level Architecture
+
+```
+User Input (draw / image / text)
+        │
+        ▼
+Gemini 2.5 Flash (sketch enhancement)
+        │
+        ▼
+Meshy AI (primary 3D generation) ──┐
+        │                          │
+   [10s timeout]                   │
+        │                          │
+        └──► Tripo3D (fallback) ◄──┘  ← seamless, no UI jump
+        │
+        ▼
+GLB model + Gaussian Splat world + Generated music (ElevenLabs)
+        │
+        ▼
+Three.js + Rapier + Spark (splat renderer) in browser
+```
+
+Key properties:
+
+- Intelligent **provider switching** after 10s (Meshy → Tripo3D) with **progress mapping** so the bar never jumps backwards
+- **Webhook + polling hybrid** for resilient status updates
+- **Dual representation**: visual splats for beauty, meshed colliders (GLB) for physics
+- **COEP/COOP/CORP-compliant** for WASM + SharedArrayBuffer in the browser
+
+---
+
+## 🧩 Major Components
+
+### 1) 3D Engine (client-only)
+
+- **Three.js** for rendering
+- **@sparkjsdev/spark** for Gaussian Splat rendering (.spz)
+- **Rapier (WASM)** for physics (fixed-timestep loop @ 60Hz)
+- **PointerLock controls** (FPS camera), object grabbing/rotation/throw
+- **Spatial audio** (Web Audio API) with velocity-based pitch and distance attenuation
+
+### 2) AI Generation Pipeline
+
+- **Gemini 2.5 Flash Image**: enhances doodles into depth-aware inputs
+- **Meshy AI**: primary text-to-3D and image-to-3D
+  - two-stage text pipeline: preview → refine (PBR textures)
+- **Tripo3D**: automatic fallback after **10s** if Meshy hasn’t progressed
+  - we map Tripo3D 0–100% to whatever Meshy last reported (e.g. 45–100%)
+
+### 3) World Generation (Marble)
+
+- We use **Marble World Labs** to generate **Gaussian Splats (.spz)** for photorealistic environments
+- We **post-process** point clouds → **GLB** colliders via a PDAL microservice
+  - PDAL pipeline: `readers.ply` → `filters.delaunay` → `writers.gltf`
+  - Dockerized FastAPI service; uploads GLB to GCS for public access
+
+### 4) Music Generation (ElevenLabs)
+
+- Generates **2-minute** ambient soundtracks per world from prompt context
+- Streams response → buffers → uploaded to GCS → assigned to world
+
+---
+
+## 🛠️ Tech Stack
+
+**Languages**: TypeScript, JavaScript, Python, CSS
+
+**Frontend**: Next.js 15 (App Router, Turbopack), React 19, Tailwind v4
+
+**3D/Physics**: Three.js r180, Rapier (WASM), Spark (Gaussian Splats)
+
+**Whiteboard**: tldraw 4.x
+
+**AI Providers**: Meshy AI, Tripo3D, Google Gemini 2.5 Flash (image), ElevenLabs (music)
+
+**Cloud/Storage/CDN**: Google Cloud Storage, Marble CDN, Tripo3D CDN, Meshy CDN
+
+**Infra**: Next.js API routes, PDAL + FastAPI microservice (Docker), COEP/COOP/CORP headers for WASM
+
+---
+
+## ⚙️ Environment Variables
+
+Create a `.env.local` in the project root:
 
 ```env
 # Meshy AI API (Primary 3D generation service)
@@ -10,59 +116,136 @@ MESHY_API_KEY=your_meshy_api_key
 MESHY_IMAGE_TO_3D_URL=https://api.meshy.ai/v2/image-to-3d
 MESHY_JOB_STATUS_URL_TEMPLATE=https://api.meshy.ai/v2/image-to-3d/{id}
 
-# Gemini API (Image enhancement - optional)
+# Gemini API (Image enhancement - optional but recommended)
 GEMINI_API_KEY=your_gemini_api_key
 
-# Tripo3D API (Fallback 3D generation service - optional)
-# If Meshy doesn't complete within 2 minutes, automatically fallbacks to Tripo3D
+# Tripo3D API (Fallback 3D generation service)
+# If Meshy doesn't complete within 10 seconds, automatically fallback to Tripo3D
 TRIPO3D_API_KEY=your_tripo3d_api_key
+
+# ElevenLabs Music (optional - generative background music)
+ELEVENLABS_API_KEY=your_elevenlabs_api_key
+
+# Google Cloud Storage (for music + converted GLB uploads in the PDAL service)
+GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json
 ```
 
-### API Keys
+**Where to get keys:**
 
-- **Meshy AI**: Get your API key at [https://www.meshy.ai/](https://www.meshy.ai/)
-- **Gemini**: Get your API key at [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey)
-- **Tripo3D**: Get your API key at [https://platform.tripo3d.ai/](https://platform.tripo3d.ai/)
+- Meshy AI: https://www.meshy.ai/
+- Tripo3D: https://platform.tripo3d.ai/
+- Gemini: https://aistudio.google.com/apikey
+- ElevenLabs: https://elevenlabs.io/
 
-### Fallback Logic
+---
 
-The system uses Meshy AI as the primary 3D generation service for both **image-to-3D** and **text-to-3D** generation. If Meshy doesn't complete within 1 minute, it automatically falls back to Tripo3D (if configured). This ensures your models are always generated even if one service is slow or unavailable.
+## 🔄 Fallback & Progress Mapping
 
-**Supported Endpoints with Fallback:**
-- `/api/whiteboard/send` - Image-to-3D (from drawings or image uploads)
-- `/api/whiteboard/text` - Text-to-3D (preview mode only)
+- We start with Meshy; if **no completion within 10 seconds**, we switch to Tripo3D.
+- When switching, we **preserve last progress** and map Tripo3D’s 0–100% into that remaining window.
+- Status is tracked in `meshy_tasks/<taskId>.json` (unified file) with a `provider` flag.
+- Meshy webhooks are **ignored** after switching (webhook protection) to prevent state races.
 
-## Getting Started
+---
 
-First, run the development server:
+## 🚀 Getting Started (Local)
+
+1) Install dependencies
+
+```bash
+npm install
+```
+
+2) Add `.env.local` (see env section)
+3) Run dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+> Note: Rapier (WASM) requires **COEP/COOP** headers. We set these in `next.config.ts`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 📡 API Endpoints (App)
 
-## Learn More
+### Whiteboard (Image → 3D)
 
-To learn more about Next.js, take a look at the following resources:
+- `POST /api/whiteboard/send` → create 3D task (Gemini → Meshy; fallback: Tripo3D)
+- `GET  /api/whiteboard/status?taskId=...` → poll unified status
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Text → 3D
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `POST /api/whiteboard/text` → preview/refine (fallback only for preview stage)
 
-## Deploy on Vercel
+### Model Proxy (CORS/COEP-safe)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Proxified via Next rewrites to handle external CDNs
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Music
+
+- `POST /api/music/generate` → generates ambient track (ElevenLabs) and uploads to GCS
+
+---
+
+## 🧪 PDAL Microservice (Optional, for Mesh Colliders)
+
+Located in `/splat-to-mesh/` (Dockerized FastAPI service):
+
+**Pipeline:**
+
+```
+readers.ply  →  filters.delaunay  →  writers.gltf (.glb)
+```
+
+**Why PDAL?** Splats are neural point primitives (amazing visually), but physics needs triangles. PDAL does the heavy lifting to reconstruct surfaces from millions of points and exports GLB colliders usable by Rapier.
+
+---
+
+## 🧪 Performance Engineering
+
+- **Fixed timestep** physics (60Hz) with accumulator to keep sim deterministic
+- **Resource caching**: models, audio buffers, material conversion results
+- **Object pooling**: projectiles with hard caps and shared geometries
+- **Raycasting throttle** and early exits for hover detection
+- **Simplified colliders** (single cuboid) option for large dynamic meshes
+
+---
+
+## 🧭 Folder Structure
+
+```
+src/
+  app/
+    api/
+      whiteboard/
+        send/route.ts       # image → 3D (Gemini + Meshy; fallback Tripo3D)
+        status/route.ts     # unified polling endpoint
+        text/route.ts       # text → 3D (preview w/ fallback)
+      music/
+        generate/route.ts   # ElevenLabs music
+    page.tsx                # homepage UI
+    globals.css             # Tailwind v4 + custom animations
+  components/
+    Scene.tsx               # 3D scene, physics, controls, loaders
+    Whiteboard.tsx          # tldraw whiteboard modal
+    Inventory.tsx           # (extensible) inventory UI
+  data/
+    preset-worlds.json      # preset worlds (splats + mesh + audio)
+
+splat-to-mesh/              # PDAL + FastAPI microservice for PLY → GLB
+```
+
+---
+
+## 🧰 Troubleshooting
+
+**Thumbnails blocked by COEP**
+
+- Ensure URLs use proxied paths or Next.js rewrites handle external CDNs
+- Remove `crossOrigin="anonymous"` from plain `<img>` (only needed for Canvas/WebGL reads)
+
+**WASM/SharedArrayBuffer errors**
+
+- Check `next.config.ts` headers: COEP/COOP must be set site-wide
