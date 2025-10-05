@@ -19,9 +19,9 @@ const TaskProgressList = dynamic(() => import("./TaskProgressList"), {
   ssr: false,
 });
 
+import { generateThumbnail } from "@/utils/thumbnail-generator";
 import type { InventoryItem } from "./Inventory";
 import type { Task } from "./TaskProgressList";
-import { generateThumbnail } from "@/utils/thumbnail-generator";
 
 interface SceneProps {
   meshUrl: string;
@@ -80,13 +80,13 @@ function optimizeSkinnedMeshes(object: THREE.Object3D) {
   object.traverse((child) => {
     if ((child as THREE.SkinnedMesh).isSkinnedMesh) {
       const mesh = child as THREE.SkinnedMesh;
-      
+
       // Critical: Simplify geometry for performance
       const geometry = mesh.geometry;
-      
+
       // Enable frustum culling (should be default but ensure it's on)
       mesh.frustumCulled = true;
-      
+
       // Optimize the skeleton - limit bone influence
       if (mesh.skeleton && geometry.attributes.skinWeight) {
         const skinWeights = geometry.attributes.skinWeight;
@@ -96,9 +96,9 @@ function optimizeSkinnedMeshes(object: THREE.Object3D) {
             skinWeights.getX(i),
             skinWeights.getY(i),
             skinWeights.getZ(i),
-            skinWeights.getW(i)
+            skinWeights.getW(i),
           ];
-          
+
           // Zero out weaker influences
           if (weights[2] < 0.1) {
             skinWeights.setZ(i, 0);
@@ -107,8 +107,12 @@ function optimizeSkinnedMeshes(object: THREE.Object3D) {
         }
         skinWeights.needsUpdate = true;
       }
-      
-      console.log(`Optimized skinned mesh: ${mesh.name || "unnamed"}, bones: ${mesh.skeleton?.bones.length || 0}`);
+
+      console.log(
+        `Optimized skinned mesh: ${mesh.name || "unnamed"}, bones: ${
+          mesh.skeleton?.bones.length || 0
+        }`
+      );
     }
   });
 }
@@ -137,11 +141,11 @@ function setupMaterialsForLighting(
           stdMat.metalness = 0.0;
           stdMat.emissive.setHex(0x000000);
           stdMat.emissiveIntensity = 0;
-          
+
           if (brightnessMultiplier !== 1.0) {
             stdMat.color.multiplyScalar(brightnessMultiplier);
           }
-          
+
           // Disable unnecessary transparency
           if (stdMat.transparent && stdMat.opacity === 1) {
             stdMat.transparent = false;
@@ -202,7 +206,8 @@ export default function Scene({
   const [loadingMessage, setLoadingMessage] = useState("Loading scene...");
   const [isNoclipActive, setIsNoclipActive] = useState(false);
   // Determine mesh rotation based on URL source (Marble meshes vs our converted meshes)
-  const isMarbleMesh = isMarbleMeshUrl(meshUrl);
+  const isMarbleMesh =
+    isMarbleMeshUrl(meshUrl) || meshUrl.includes("/hackharvard.glb");
   const meshRotation = isMarbleMesh
     ? [0, 0, 0]
     : [Math.PI / 2, Math.PI, Math.PI];
@@ -249,121 +254,122 @@ export default function Scene({
   // Generate thumbnails on mount
   useEffect(() => {
     const items: InventoryItem[] = [
-    {
-      id: "duck",
-      name: "Duck",
-      modelUrl: "/assets/homemade/duck.glb",
-      sfx: ["/sfx/dog_1.mp3"], // Placeholder - add duck sounds later
-      scale: 0.1, // Smaller duck
-    },
-    // Gandalf animations
-    {
-      id: "gandalf-walking",
-      name: "Gandalf (Walking)",
-      modelUrl: "/assets/homemade/gandalf/Animation_Walking_withSkin.glb",
-      sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3"],
-    },
-    {
-      id: "gandalf-running",
-      name: "Gandalf (Running)",
-      modelUrl: "/assets/homemade/gandalf/Animation_Running_withSkin.glb",
-      sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3"],
-    },
-    {
-      id: "gandalf-backflip",
-      name: "Gandalf (Backflip)",
-      modelUrl: "/assets/homemade/gandalf/Animation_Backflip_withSkin.glb",
-      sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3"],
-    },
-    {
-      id: "gandalf-spin-jump",
-      name: "Gandalf (Spin Jump)",
-      modelUrl:
-        "/assets/homemade/gandalf/Animation_360_Power_Spin_Jump_withSkin.glb",
-      sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3"],
-    },
-    {
-      id: "groupphoto",
-      name: "Group Photo",
-      modelUrl: "/assets/homemade/groupphoto.glb",
-      scale: 0.6
-    },
-    {
-      id: "macbook",
-      name: "MacBook",
-      modelUrl: "/assets/homemade/macbook.glb",
-      scale: 0.4, // Smaller MacBook
-    },
-    // Mermaid animations
-    {
-      id: "mermaid-walking",
-      name: "Mermaid (Walking)",
-      modelUrl: "/assets/homemade/mermaid/Animation_Walking_withSkin.glb",
-      sfx: ["/sfx/furry_1.mp3"],
-    },
-    {
-      id: "mermaid-running",
-      name: "Mermaid (Running)",
-      modelUrl: "/assets/homemade/mermaid/Animation_Running_withSkin.glb",
-      sfx: ["/sfx/furry_1.mp3"],
-    },
-    {
-      id: "mermaid-dance",
-      name: "Mermaid (Dance)",
-      modelUrl: "/assets/homemade/mermaid/Animation_Boom_Dance_withSkin.glb",
-      sfx: ["/sfx/furry_1.mp3"],
-    },
-    {
-      id: "mermaid-agree",
-      name: "Mermaid (Agree)",
-      modelUrl: "/assets/homemade/mermaid/Animation_Agree_Gesture_withSkin.glb",
-      sfx: ["/sfx/furry_1.mp3"],
-    },
-    {
-      id: "mermaid-spin-jump",
-      name: "Mermaid (Spin Jump)",
-      modelUrl:
-        "/assets/homemade/mermaid/Animation_360_Power_Spin_Jump_withSkin.glb",
-      sfx: ["/sfx/furry_1.mp3"],
-    },
-    {
-      id: "mlp",
-      name: "My Little Pony",
-      modelUrl: "/assets/homemade/mlp.glb",
-      sfx: ["/sfx/dog_2.mp3"], // Placeholder - add pony sounds later
-    },
-    {
-      id: "redbull",
-      name: "Red Bull",
-      modelUrl: "/assets/homemade/redbull.glb",
-      scale: 0.5, // Smaller Red Bull
-    },
-    {
-      id: "hackharvard",
-      name: "Hack Harvard",
-      modelUrl: "/assets/homemade/hackharvard.glb",
-      scale: 0.5, // Smaller Hack Harvard
-    },
-    // Santa animations
-    {
-      id: "santa-walking",
-      name: "Santa (Walking)",
-      modelUrl: "/assets/homemade/santa/Animation_Walking_withSkin.glb",
-      sfx: ["/sfx/orc_3.mp3"],
-    },
-    {
-      id: "santa-running",
-      name: "Santa (Running)",
-      modelUrl: "/assets/homemade/santa/Animation_Running_withSkin.glb",
-      sfx: ["/sfx/orc_3.mp3"],
-    },
-    {
-      id: "santa-spin-jump",
-      name: "Santa (Spin Jump)",
-      modelUrl:
-        "/assets/homemade/santa/Animation_360_Power_Spin_Jump_withSkin.glb",
-      sfx: ["/sfx/orc_3.mp3"],
-    },
+      {
+        id: "duck",
+        name: "Duck",
+        modelUrl: "/assets/homemade/duck.glb",
+        sfx: ["/sfx/dog_1.mp3"], // Placeholder - add duck sounds later
+        scale: 0.1, // Smaller duck
+      },
+      // Gandalf animations
+      {
+        id: "gandalf-walking",
+        name: "Gandalf (Walking)",
+        modelUrl: "/assets/homemade/gandalf/Animation_Walking_withSkin.glb",
+        sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3"],
+      },
+      {
+        id: "gandalf-running",
+        name: "Gandalf (Running)",
+        modelUrl: "/assets/homemade/gandalf/Animation_Running_withSkin.glb",
+        sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3"],
+      },
+      {
+        id: "gandalf-backflip",
+        name: "Gandalf (Backflip)",
+        modelUrl: "/assets/homemade/gandalf/Animation_Backflip_withSkin.glb",
+        sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3"],
+      },
+      {
+        id: "gandalf-spin-jump",
+        name: "Gandalf (Spin Jump)",
+        modelUrl:
+          "/assets/homemade/gandalf/Animation_360_Power_Spin_Jump_withSkin.glb",
+        sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3"],
+      },
+      {
+        id: "groupphoto",
+        name: "Group Photo",
+        modelUrl: "/assets/homemade/groupphoto.glb",
+        scale: 0.6,
+      },
+      {
+        id: "macbook",
+        name: "MacBook",
+        modelUrl: "/assets/homemade/macbook.glb",
+        scale: 0.4, // Smaller MacBook
+      },
+      // Mermaid animations
+      {
+        id: "mermaid-walking",
+        name: "Mermaid (Walking)",
+        modelUrl: "/assets/homemade/mermaid/Animation_Walking_withSkin.glb",
+        sfx: ["/sfx/furry_1.mp3"],
+      },
+      {
+        id: "mermaid-running",
+        name: "Mermaid (Running)",
+        modelUrl: "/assets/homemade/mermaid/Animation_Running_withSkin.glb",
+        sfx: ["/sfx/furry_1.mp3"],
+      },
+      {
+        id: "mermaid-dance",
+        name: "Mermaid (Dance)",
+        modelUrl: "/assets/homemade/mermaid/Animation_Boom_Dance_withSkin.glb",
+        sfx: ["/sfx/furry_1.mp3"],
+      },
+      {
+        id: "mermaid-agree",
+        name: "Mermaid (Agree)",
+        modelUrl:
+          "/assets/homemade/mermaid/Animation_Agree_Gesture_withSkin.glb",
+        sfx: ["/sfx/furry_1.mp3"],
+      },
+      {
+        id: "mermaid-spin-jump",
+        name: "Mermaid (Spin Jump)",
+        modelUrl:
+          "/assets/homemade/mermaid/Animation_360_Power_Spin_Jump_withSkin.glb",
+        sfx: ["/sfx/furry_1.mp3"],
+      },
+      {
+        id: "mlp",
+        name: "My Little Pony",
+        modelUrl: "/assets/homemade/mlp.glb",
+        sfx: ["/sfx/dog_2.mp3"], // Placeholder - add pony sounds later
+      },
+      {
+        id: "redbull",
+        name: "Red Bull",
+        modelUrl: "/assets/homemade/redbull.glb",
+        scale: 0.5, // Smaller Red Bull
+      },
+      {
+        id: "hackharvard",
+        name: "Hack Harvard",
+        modelUrl: "/assets/homemade/hackharvard.glb",
+        scale: 0.5, // Smaller Hack Harvard
+      },
+      // Santa animations
+      {
+        id: "santa-walking",
+        name: "Santa (Walking)",
+        modelUrl: "/assets/homemade/santa/Animation_Walking_withSkin.glb",
+        sfx: ["/sfx/orc_3.mp3"],
+      },
+      {
+        id: "santa-running",
+        name: "Santa (Running)",
+        modelUrl: "/assets/homemade/santa/Animation_Running_withSkin.glb",
+        sfx: ["/sfx/orc_3.mp3"],
+      },
+      {
+        id: "santa-spin-jump",
+        name: "Santa (Spin Jump)",
+        modelUrl:
+          "/assets/homemade/santa/Animation_360_Power_Spin_Jump_withSkin.glb",
+        sfx: ["/sfx/orc_3.mp3"],
+      },
     ];
 
     // Generate thumbnails for all items
@@ -1964,17 +1970,19 @@ export default function Scene({
         const cameraPos = camera.position;
         const cameraDir = new THREE.Vector3();
         camera.getWorldDirection(cameraDir);
-        
+
         for (const model of dynamicModels) {
           if (model.mixer && mounted) {
             try {
               const distance = model.root.position.distanceTo(cameraPos);
-              
+
               // Check if model is behind camera
-              const toModel = new THREE.Vector3().subVectors(model.root.position, cameraPos).normalize();
+              const toModel = new THREE.Vector3()
+                .subVectors(model.root.position, cameraPos)
+                .normalize();
               const dot = cameraDir.dot(toModel);
               const isBehindCamera = dot < -0.5;
-              
+
               // Update animations at reduced rate based on distance and visibility
               if (distance < 10 && !isBehindCamera) {
                 // Close and visible: full rate
