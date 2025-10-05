@@ -15,8 +15,10 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 const Whiteboard = dynamic(() => import("./Whiteboard"), { ssr: false });
 const Inventory = dynamic(() => import("./Inventory"), { ssr: false });
+const TaskProgressList = dynamic(() => import("./TaskProgressList"), { ssr: false });
 
 import type { InventoryItem } from "./Inventory";
+import type { Task } from "./TaskProgressList";
 
 interface SceneProps {
   meshUrl: string;
@@ -176,9 +178,7 @@ export default function Scene({
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showTextModal, setShowTextModal] = useState(false);
   const [showInventory, setShowInventory] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<string>("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generationProgress, setGenerationProgress] = useState<number>(0);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState("Loading scene...");
   const [isNoclipActive, setIsNoclipActive] = useState(false);
@@ -205,6 +205,21 @@ export default function Scene({
     )} rad)`;
 
   const formatPosition = (value: number) => value.toFixed(3);
+
+  // Task management helpers
+  const addTask = (id: string, message: string) => {
+    setTasks(prev => [...prev, { id, progress: 1, message, status: "processing" }]);
+  };
+
+  const updateTask = (id: string, updates: Partial<Task>) => {
+    setTasks(prev => prev.map(task => 
+      task.id === id ? { ...task, ...updates } : task
+    ));
+  };
+
+  const removeTask = (id: string) => {
+    setTasks(prev => prev.filter(task => task.id !== id));
+  };
 
   // Inventory items - easily extensible for future generated models
   const inventoryItems: InventoryItem[] = [
@@ -2016,14 +2031,14 @@ export default function Scene({
     artStyle: string = "realistic"
   ) => {
     if (!prompt.trim()) {
-      setUploadProgress("Error: Please enter a description.");
       return;
     }
 
+    const taskId = `text-${Date.now()}`;
+    addTask(taskId, "Creating preview model...");
+
     try {
-      setIsGenerating(true);
-      setGenerationProgress(0);
-      setUploadProgress("Creating preview model...");
+      updateTask(taskId, { status: "processing", progress: 1 });
 
       // Stage 1: Create preview task
       const previewResponse = await fetch("/api/whiteboard/text", {
@@ -2051,8 +2066,7 @@ export default function Scene({
         throw new Error("No preview task ID received");
       }
 
-      setUploadProgress("Generating 3D mesh...");
-      setGenerationProgress(10);
+      updateTask(taskId, { message: "Starting mesh generation...", progress: 5 });
 
       // Poll for preview completion
       const maxTries = 100;
@@ -2071,34 +2085,38 @@ export default function Scene({
 
         const statusData = await statusRes.json();
         const progress = statusData.progress || 0;
-        setGenerationProgress(Math.max(10, Math.min(45, 10 + progress * 0.35)));
-
+        const displayProgress = Math.max(10, Math.min(45, 10 + progress * 0.35));
+        
         if (progress > 0 && progress < 100) {
-          setUploadProgress(`Generating mesh... ${progress}% complete`);
+          updateTask(taskId, { 
+            message: `Generating mesh... ${progress}% complete`,
+            progress: displayProgress 
+          });
         }
 
         if (statusData.status === "SUCCEEDED") {
           previewComplete = true;
           
           // If preview was completed by Tripo3D (has glb directly), skip refine and load it
-          if (statusData.provider === "tripo3d" && statusData.model_urls?.glb) {
+          const glbUrl = statusData.model_urls?.glb || statusData.model_url;
+          if (statusData.provider === "tripo3d" && glbUrl) {
             console.log("Preview completed by Tripo3D - loading directly, skipping refine");
-            setGenerationProgress(100);
-            setUploadProgress("Loading model into scene...");
+            updateTask(taskId, { 
+              message: "Loading model into scene...", 
+              progress: 100,
+              status: "processing"
+            });
             
             if ((window as any).__LOAD_DYNAMIC_MODEL__) {
-              await (window as any).__LOAD_DYNAMIC_MODEL__(
-                statusData.model_urls.glb
-              );
+              await (window as any).__LOAD_DYNAMIC_MODEL__(glbUrl);
             }
             
-            setUploadProgress("✓ Model loaded successfully!");
-            setTimeout(() => {
-              setShowTextModal(false);
-              setUploadProgress("");
-              setIsGenerating(false);
-              setGenerationProgress(0);
-            }, 2000);
+            updateTask(taskId, { 
+              message: "Model loaded successfully!", 
+              status: "completed",
+              progress: 100
+            });
+            setShowTextModal(false);
             return; // Exit early, don't go to refine stage
           }
           
@@ -2106,18 +2124,26 @@ export default function Scene({
         } else if (statusData.status === "FAILED") {
           const errorMsg =
             statusData.task_error?.message || "Preview generation failed";
-          alert(`❌ Model Generation Failed\n\n${errorMsg}`);
+          updateTask(taskId, { 
+            message: `Error: ${errorMsg}`, 
+            status: "error",
+            progress: 0
+          });
           throw new Error(errorMsg);
         }
       }
 
       if (!previewComplete) {
+        updateTask(taskId, { 
+          message: "Error: Preview generation timeout", 
+          status: "error",
+          progress: 0
+        });
         throw new Error("Preview generation timeout");
       }
 
       // Stage 2: Create refine task (only for Meshy previews)
-      setUploadProgress("Adding textures...");
-      setGenerationProgress(50);
+      updateTask(taskId, { message: "Adding textures...", progress: 50 });
 
       const refineResponse = await fetch("/api/whiteboard/text", {
         method: "POST",
@@ -2156,36 +2182,40 @@ export default function Scene({
 
         const statusData = await statusRes.json();
         const progress = statusData.progress || 0;
-        setGenerationProgress(Math.max(50, Math.min(95, 50 + progress * 0.45)));
+        const displayProgress = Math.max(50, Math.min(95, 50 + progress * 0.45));
 
         if (progress > 0 && progress < 100) {
-          setUploadProgress(`Adding textures... ${progress}% complete`);
+          updateTask(taskId, { 
+            message: `Adding textures... ${progress}% complete`,
+            progress: displayProgress
+          });
         }
 
         if (statusData.status === "SUCCEEDED") {
-          if (statusData.model_urls?.glb) {
-            setGenerationProgress(100);
-            setUploadProgress("Loading model into scene...");
+          const glbUrl = statusData.model_urls?.glb || statusData.model_url;
+          if (glbUrl) {
+            updateTask(taskId, { 
+              message: "Loading model into scene...", 
+              progress: 100,
+              status: "processing"
+            });
 
             // Load the model
             if ((window as any).__LOAD_DYNAMIC_MODEL__) {
-              await (window as any).__LOAD_DYNAMIC_MODEL__(
-                statusData.model_urls.glb
-              );
+              await (window as any).__LOAD_DYNAMIC_MODEL__(glbUrl);
             }
 
-            setUploadProgress("✓ Model loaded successfully!");
+            updateTask(taskId, { 
+              message: "Model loaded successfully!", 
+              status: "completed",
+              progress: 100
+            });
+            setShowTextModal(false);
             setTimeout(() => {
-              setShowTextModal(false);
-              setUploadProgress("");
-              setIsGenerating(false);
-              setGenerationProgress(0);
-              setTimeout(() => {
-                if (controlsRef.current) {
-                  controlsRef.current.lock();
-                }
-              }, 100);
-            }, 2000);
+              if (controlsRef.current) {
+                controlsRef.current.lock();
+              }
+            }, 100);
             return;
           } else {
             throw new Error("No GLB model URL in response");
@@ -2193,19 +2223,28 @@ export default function Scene({
         } else if (statusData.status === "FAILED") {
           const errorMsg =
             statusData.task_error?.message || "Texture generation failed";
-          alert(`❌ Texture Generation Failed\n\n${errorMsg}`);
+          updateTask(taskId, { 
+            message: `Error: ${errorMsg}`, 
+            status: "error",
+            progress: 0
+          });
           throw new Error(errorMsg);
         }
       }
 
+      updateTask(taskId, { 
+        message: "Error: Texture generation timeout", 
+        status: "error",
+        progress: 0
+      });
       throw new Error("Texture generation timeout");
     } catch (error) {
       console.error("Error generating model from text:", error);
-      setUploadProgress(
-        `Error: ${error instanceof Error ? error.message : "Unknown error"}`
-      );
-      setIsGenerating(false);
-      setGenerationProgress(0);
+      updateTask(taskId, { 
+        message: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        status: "error",
+        progress: 0
+      });
     }
   };
 
@@ -2215,14 +2254,14 @@ export default function Scene({
     // Validate file type
     const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
     if (!validTypes.includes(file.type)) {
-      setUploadProgress("Error: Please upload a JPG, JPEG, PNG, or WebP file.");
       return;
     }
 
+    const taskId = `upload-${Date.now()}`;
+    addTask(taskId, "Converting image to base64...");
+
     try {
-      setIsGenerating(true);
-      setGenerationProgress(0);
-      setUploadProgress("Converting image to base64...");
+      updateTask(taskId, { status: "processing", progress: 1 });
 
       // Convert file to base64
       const reader = new FileReader();
@@ -2236,8 +2275,7 @@ export default function Scene({
       reader.readAsDataURL(file);
       const dataUri = await base64Promise;
 
-      setUploadProgress("Generating your creation...");
-      setGenerationProgress(5);
+      updateTask(taskId, { message: "Sending to AI...", progress: 5 });
 
       // Send to backend API - returns immediately with task ID
       const response = await fetch("/api/whiteboard/send", {
@@ -2256,23 +2294,25 @@ export default function Scene({
       }
 
       const data = await response.json();
-      const taskId = data.id;
-      console.log("Meshy task created:", taskId);
-
-      // Start progress polling with taskId
+      const backendTaskId = data.id;
+      console.log("Meshy task created:", backendTaskId);
+      
+      updateTask(taskId, { message: "Starting 3D generation...", progress: 10 });
+      
       const progressInterval = setInterval(async () => {
         try {
           const statusRes = await fetch(
-            `/api/whiteboard/status?taskId=${taskId}`
+            `/api/whiteboard/status?taskId=${backendTaskId}`
           );
           if (statusRes.ok) {
             const statusData = await statusRes.json();
             const progress = statusData.progress || 0;
-            const provider = statusData.provider || "meshy";
-            setGenerationProgress(Math.max(5, Math.min(95, progress)));
 
             if (progress > 0 && progress < 100) {
-              setUploadProgress(`Generating model... ${progress}% complete`);
+              updateTask(taskId, { 
+                message: `Generating model... ${progress}% complete`,
+                progress: Math.max(5, Math.min(95, progress))
+              });
             }
           }
         } catch (err) {
@@ -2288,7 +2328,7 @@ export default function Scene({
         await new Promise((resolve) => setTimeout(resolve, delayMs));
 
         const statusRes = await fetch(
-          `/api/whiteboard/status?taskId=${taskId}`
+          `/api/whiteboard/status?taskId=${backendTaskId}`
         );
         if (!statusRes.ok) continue;
 
@@ -2298,48 +2338,59 @@ export default function Scene({
           clearInterval(progressInterval);
           const errorMsg =
             statusData.task_error?.message || "Model generation failed";
-          alert(`❌ Model Generation Failed\n\n${errorMsg}`);
+          updateTask(taskId, { 
+            message: `Error: ${errorMsg}`,
+            status: "error",
+            progress: 0
+          });
           throw new Error(errorMsg);
         }
 
-        if (statusData.status === "SUCCEEDED" && statusData.model_urls?.glb) {
+        // Get GLB URL - works for both Meshy and Tripo3D
+        const glbUrl = statusData.model_urls?.glb || statusData.model_url;
+
+        if (statusData.status === "SUCCEEDED" && glbUrl) {
           clearInterval(progressInterval);
-          setGenerationProgress(100);
-          setUploadProgress("Loading model into scene...");
+          updateTask(taskId, { 
+            message: "Loading model into scene...",
+            progress: 100,
+            status: "processing"
+          });
 
           // Load the model using the existing function
           if ((window as any).__LOAD_DYNAMIC_MODEL__) {
-            await (window as any).__LOAD_DYNAMIC_MODEL__(
-              statusData.model_urls.glb
-            );
+            await (window as any).__LOAD_DYNAMIC_MODEL__(glbUrl);
           }
 
-          setUploadProgress("✓ Model loaded successfully!");
+          updateTask(taskId, { 
+            message: "Model loaded successfully!",
+            status: "completed",
+            progress: 100
+          });
+          setShowUploadModal(false);
           setTimeout(() => {
-            setShowUploadModal(false);
-            setUploadProgress("");
-            setIsGenerating(false);
-            setGenerationProgress(0);
-            // Re-lock pointer
-            setTimeout(() => {
-              if (controlsRef.current) {
-                controlsRef.current.lock();
-              }
-            }, 100);
-          }, 2000);
+            if (controlsRef.current) {
+              controlsRef.current.lock();
+            }
+          }, 100);
           return;
         }
       }
 
       clearInterval(progressInterval);
+      updateTask(taskId, { 
+        message: "Error: Model generation timeout",
+        status: "error",
+        progress: 0
+      });
       throw new Error("Model generation timeout");
     } catch (error) {
       console.error("Error generating model:", error);
-      setUploadProgress(
-        `Error: ${error instanceof Error ? error.message : "Unknown error"}`
-      );
-      setIsGenerating(false);
-      setGenerationProgress(0);
+      updateTask(taskId, { 
+        message: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+        status: "error",
+        progress: 0
+      });
     }
   };
 
@@ -2469,26 +2520,8 @@ export default function Scene({
             </div>
           )}
 
-          {/* Model Generation Progress Bar */}
-          {isGenerating && (
-            <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-black/80 text-white px-6 py-4 rounded-2xl shadow-2xl backdrop-blur z-30 min-w-[400px]">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold">
-                  Generating 3D Model...
-                </span>
-                <span className="text-sm font-bold text-purple-400">
-                  {generationProgress}%
-                </span>
-              </div>
-              <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
-                <div
-                  className="bg-gradient-to-r from-purple-500 to-pink-500 h-full rounded-full transition-all duration-300 ease-out"
-                  style={{ width: `${generationProgress}%` }}
-                />
-              </div>
-              <p className="text-xs text-gray-300 mt-2">{uploadProgress}</p>
-            </div>
-          )}
+          {/* Task Progress List */}
+          <TaskProgressList tasks={tasks} onRemoveTask={removeTask} />
         </>
       )}
 
@@ -2504,18 +2537,28 @@ export default function Scene({
               }
             }, 100);
           }}
-          onGenerationStart={() => {
-            setIsGenerating(true);
-            setGenerationProgress(0);
+          onGenerationStart={(taskId: string) => {
+            addTask(taskId, "Converting drawing to image...");
           }}
-          onGenerationProgress={(progress, message) => {
-            setGenerationProgress(progress);
-            setUploadProgress(message);
+          onGenerationProgress={(taskId: string, progress: number, message: string) => {
+            updateTask(taskId, { 
+              progress,
+              message,
+              status: progress >= 100 ? "completed" : "processing"
+            });
           }}
-          onGenerationComplete={() => {
-            setIsGenerating(false);
-            setGenerationProgress(0);
-            setUploadProgress("");
+          onGenerationComplete={(taskId: string) => {
+            updateTask(taskId, { 
+              status: "completed",
+              progress: 100
+            });
+          }}
+          onGenerationError={(taskId: string, error: string) => {
+            updateTask(taskId, { 
+              status: "error",
+              message: `Error: ${error}`,
+              progress: 0
+            });
           }}
         />
       )}
@@ -2529,52 +2572,37 @@ export default function Scene({
             </h2>
             <p className="text-gray-600 mb-6 text-sm">
               Upload an image (JPG, JPEG, PNG, or WebP) to generate a 3D model
-              using Meshy AI.
+               Progress will be shown in the top right corner.
             </p>
 
-            {!isGenerating ? (
-              <>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/webp"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      handleFileUpload(file);
-                    }
-                  }}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 mb-4"
-                />
+            <input
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  handleFileUpload(file);
+                  setShowUploadModal(false);
+                }
+              }}
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 mb-4"
+            />
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setShowUploadModal(false);
-                      setTimeout(() => {
-                        if (controlsRef.current) {
-                          controlsRef.current.lock();
-                        }
-                      }, 100);
-                    }}
-                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-                </div>
-                <p className="text-center text-gray-700 font-medium">
-                  {uploadProgress}
-                </p>
-                <p className="text-center text-gray-500 text-xs">
-                  This may take a few minutes...
-                </p>
-              </div>
-            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setShowUploadModal(false);
+                  setTimeout(() => {
+                    if (controlsRef.current) {
+                      controlsRef.current.lock();
+                    }
+                  }, 100);
+                }}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2587,92 +2615,77 @@ export default function Scene({
               Generate 3D Model from Text
             </h2>
             <p className="text-gray-600 mb-6 text-sm">
-              Describe a 3D object and Meshy AI will generate it for you.
+              Describe a 3D object and Meshy AI will generate it for you. Progress will be shown in the top right corner.
             </p>
 
-            {!isGenerating ? (
-              <>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.currentTarget);
-                    const prompt = formData.get("prompt") as string;
-                    const artStyle = formData.get("artStyle") as string;
-                    handleTextToModel(prompt, artStyle);
-                  }}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const prompt = formData.get("prompt") as string;
+                const artStyle = formData.get("artStyle") as string;
+                handleTextToModel(prompt, artStyle);
+                setShowTextModal(false);
+              }}
+            >
+              <div className="mb-4">
+                <label
+                  htmlFor="prompt"
+                  className="block text-sm font-medium text-gray-700 mb-2"
                 >
-                  <div className="mb-4">
-                    <label
-                      htmlFor="prompt"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Description
-                    </label>
-                    <textarea
-                      id="prompt"
-                      name="prompt"
-                      rows={4}
-                      placeholder="e.g., a medieval sword with golden handle, a cute robot character, a fantasy castle..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-gray-800"
-                      maxLength={600}
-                      required
-                    />
-                  </div>
-
-                  <div className="mb-6">
-                    <label
-                      htmlFor="artStyle"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Art Style
-                    </label>
-                    <select
-                      id="artStyle"
-                      name="artStyle"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-800"
-                    >
-                      <option value="realistic">Realistic</option>
-                      <option value="sculpture">Sculpture</option>
-                    </select>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowTextModal(false);
-                        setTimeout(() => {
-                          if (controlsRef.current) {
-                            controlsRef.current.lock();
-                          }
-                        }, 100);
-                      }}
-                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                    >
-                      Generate
-                    </button>
-                  </div>
-                </form>
-              </>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-                </div>
-                <p className="text-center text-gray-700 font-medium">
-                  {uploadProgress}
-                </p>
-                <p className="text-center text-gray-500 text-xs">
-                  This may take several minutes...
-                </p>
+                  Description
+                </label>
+                <textarea
+                  id="prompt"
+                  name="prompt"
+                  rows={4}
+                  placeholder="e.g., a medieval sword with golden handle, a cute robot character, a fantasy castle..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-gray-800"
+                  maxLength={600}
+                  required
+                />
               </div>
-            )}
+
+              <div className="mb-6">
+                <label
+                  htmlFor="artStyle"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  Art Style
+                </label>
+                <select
+                  id="artStyle"
+                  name="artStyle"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-800"
+                >
+                  <option value="realistic">Realistic</option>
+                  <option value="sculpture">Sculpture</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTextModal(false);
+                    setTimeout(() => {
+                      if (controlsRef.current) {
+                        controlsRef.current.lock();
+                      }
+                    }, 100);
+                  }}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  Generate
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

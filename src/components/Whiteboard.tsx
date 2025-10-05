@@ -6,16 +6,18 @@ import "tldraw/tldraw.css";
 
 interface WhiteboardProps {
   onClose: () => void;
-  onGenerationStart: () => void;
-  onGenerationProgress: (progress: number, message: string) => void;
-  onGenerationComplete: () => void;
+  onGenerationStart: (taskId: string) => void;
+  onGenerationProgress: (taskId: string, progress: number, message: string) => void;
+  onGenerationComplete: (taskId: string) => void;
+  onGenerationError: (taskId: string, error: string) => void;
 }
 
 export default function Whiteboard({ 
   onClose, 
   onGenerationStart, 
   onGenerationProgress, 
-  onGenerationComplete 
+  onGenerationComplete,
+  onGenerationError
 }: WhiteboardProps) {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
@@ -75,9 +77,11 @@ export default function Whiteboard({
     setShowOptionsModal(false);
     onClose();
 
+    const taskId = `whiteboard-${Date.now()}`;
+    
     try {
-      onGenerationStart();
-      onGenerationProgress(0, "Converting drawing to image...");
+      onGenerationStart(taskId);
+      onGenerationProgress(taskId, 1, "Converting drawing to image...");
 
       // Convert all shapes to array
       const allShapes = Array.from(editor.getCurrentPageShapeIds());
@@ -98,7 +102,7 @@ export default function Whiteboard({
         reader.readAsDataURL(imageResult.blob);
       });
 
-      onGenerationProgress(5, "Generating your creation...");
+      onGenerationProgress(taskId, 5, "Sending to AI...");
 
       const response = await fetch("/api/whiteboard/send", {
         method: "POST",
@@ -115,18 +119,21 @@ export default function Whiteboard({
         throw new Error(data?.error || "Failed to create 3D model");
       }
 
-      const taskId = data.id;
-      console.log('Meshy task created:', taskId);
+      console.log('Meshy task created:', data.id);
+      
+      onGenerationProgress(taskId, 10, "Starting 3D generation...");
 
-      // Poll for progress with taskId
+      // Poll for progress with backend taskId
+      const backendTaskId = data.id;
       const progressInterval = setInterval(async () => {
         try {
-          const statusRes = await fetch(`/api/whiteboard/status?taskId=${taskId}`);
+          const statusRes = await fetch(`/api/whiteboard/status?taskId=${backendTaskId}`);
           if (statusRes.ok) {
             const statusData = await statusRes.json();
             const progress = statusData.progress || 0;
             if (progress > 0 && progress < 100) {
               onGenerationProgress(
+                taskId, // Use the frontend taskId for UI updates
                 Math.max(5, Math.min(95, progress)),
                 `Generating model... ${progress}% complete`
               );
@@ -144,49 +151,73 @@ export default function Whiteboard({
       for (let i = 0; i < maxTries; i++) {
         await new Promise(resolve => setTimeout(resolve, delayMs));
         
-        const statusRes = await fetch(`/api/whiteboard/status?taskId=${taskId}`);
+        const statusRes = await fetch(`/api/whiteboard/status?taskId=${backendTaskId}`);
         if (!statusRes.ok) continue;
         
         const statusData = await statusRes.json();
-        console.log('Status check:', statusData);
+        const glbUrl = statusData.model_urls?.glb || statusData.model_url;
+        console.log('[Whiteboard] Status check:', {
+          status: statusData.status,
+          progress: statusData.progress,
+          hasGlbPlural: !!statusData.model_urls?.glb,
+          hasGlbSingular: !!statusData.model_url,
+          finalGlbUrl: glbUrl,
+          provider: statusData.provider,
+          switchedToTripo: statusData.switched_to_tripo3d
+        });
         
         if (statusData.status === 'FAILED') {
           clearInterval(progressInterval);
           const errorMsg = statusData.task_error?.message || "Model generation failed";
-          alert(`❌ Model Generation Failed\n\n${errorMsg}`);
+          console.error('[Whiteboard] Task failed:', errorMsg);
+          onGenerationError(taskId, errorMsg);
           throw new Error(errorMsg);
         }
         
-        if (statusData.status === 'SUCCEEDED' && statusData.model_urls?.glb) {
+        
+        if (statusData.status === 'SUCCEEDED' && glbUrl) {
           clearInterval(progressInterval);
-          onGenerationProgress(100, "Loading model into scene...");
+          console.log('[Whiteboard] Task succeeded! GLB URL:', glbUrl);
+          console.log('[Whiteboard] Provider:', statusData.provider);
+          onGenerationProgress(taskId, 100, "Loading model into scene...");
 
           const loader = (window as any)?.__LOAD_DYNAMIC_MODEL__;
+          console.log('[Whiteboard] Loader available:', typeof loader === 'function');
+          console.log('[Whiteboard] Window object:', typeof window !== 'undefined');
+          
           if (typeof loader === 'function') {
-            await loader(statusData.model_urls.glb);
-            onGenerationProgress(100, "✓ Model loaded successfully!");
-            
-            setTimeout(() => {
-              onGenerationComplete();
-            }, 2000);
-            return;
+            console.log('[Whiteboard] Calling loader with URL:', glbUrl);
+            try {
+              await loader(glbUrl);
+              console.log('[Whiteboard] Model loaded successfully!');
+              onGenerationProgress(taskId, 100, "Model loaded successfully!");
+              
+              setTimeout(() => {
+                onGenerationComplete(taskId);
+              }, 2000);
+              return;
+            } catch (loadError) {
+              console.error('[Whiteboard] Model loading failed:', loadError);
+              throw new Error('Failed to load model into scene');
+            }
           } else {
+            console.error('[Whiteboard] Model loader unavailable! Window object:', {
+              hasWindow: typeof window !== 'undefined',
+              loaderType: typeof (window as any).__LOAD_DYNAMIC_MODEL__,
+              windowKeys: typeof window !== 'undefined' ? Object.keys(window).filter(k => k.includes('LOAD')) : []
+            });
             throw new Error('Model loader unavailable');
           }
         }
       }
       
       clearInterval(progressInterval);
+      onGenerationError(taskId, 'Model generation timeout');
       throw new Error('Model generation timeout');
     } catch (error) {
       console.error("Error creating 3D model:", error);
-      onGenerationProgress(
-        0,
-        `Error: ${error instanceof Error ? error.message : "Unknown error"}`
-      );
-      setTimeout(() => {
-        onGenerationComplete();
-      }, 3000);
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      onGenerationError(taskId, errorMsg);
     }
   };
 

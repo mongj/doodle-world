@@ -141,6 +141,8 @@ async function pollTripo3DTask(taskId: string, originalMeshyId: string, meshyLas
         provider: "tripo3d",
         switched_to_tripo3d: true,
         updated_at: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+        receivedViaWebhook: true, // Mark as valid so status endpoint uses it
       };
 
       if (task.status === "success") {

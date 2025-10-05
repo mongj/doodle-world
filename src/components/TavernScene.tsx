@@ -14,8 +14,10 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 const Whiteboard = dynamic(() => import("./Whiteboard"), { ssr: false });
 const Inventory = dynamic(() => import("./Inventory"), { ssr: false });
+const TaskProgressList = dynamic(() => import("./TaskProgressList"), { ssr: false });
 
 import type { InventoryItem } from "./Inventory";
+import type { Task } from "./TaskProgressList";
 
 // Define inventory items outside component to prevent re-creation on every render
 const INVENTORY_ITEMS: InventoryItem[] = [

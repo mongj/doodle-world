@@ -27,17 +27,23 @@ export async function GET(request: NextRequest) {
       const statusData = JSON.parse(statusContent);
 
       // Check if webhook data is fresh and complete
-      if (statusData.receivedViaWebhook) {
-        const lastUpdated = statusData.lastUpdated ? new Date(statusData.lastUpdated).getTime() : 0;
+      // Trust data if it came via webhook OR if it's a completed Tripo3D fallback
+      if (statusData.receivedViaWebhook || statusData.switched_to_tripo3d) {
+        const lastUpdated = statusData.lastUpdated ? new Date(statusData.lastUpdated).getTime() : 
+                           (statusData.updated_at ? new Date(statusData.updated_at).getTime() : 0);
         const age = Date.now() - lastUpdated;
         
         // If webhook is recent and task is terminal state, use it
         if (statusData.status === "SUCCEEDED" || statusData.status === "FAILED" || statusData.status === "EXPIRED") {
           console.log(`[Status] Using webhook data for ${taskId} (terminal state)`);
+          console.log(`[Status] Provider: ${statusData.provider}, switched: ${statusData.switched_to_tripo3d}`);
+          console.log(`[Status] model_urls:`, statusData.model_urls);
+          console.log(`[Status] model_url:`, statusData.model_url);
           return NextResponse.json({
             progress: statusData.progress || 0,
             status: statusData.status || "UNKNOWN",
             model_urls: statusData.model_urls || {},
+            model_url: statusData.model_url || (statusData.model_urls?.glb), // Include singular form
             task_error: statusData.task_error || null,
             provider: statusData.provider || "meshy",
           });
@@ -50,6 +56,7 @@ export async function GET(request: NextRequest) {
             progress: statusData.progress || 0,
             status: statusData.status || "UNKNOWN",
             model_urls: statusData.model_urls || {},
+            model_url: statusData.model_url || (statusData.model_urls?.glb), // Include singular form
             task_error: statusData.task_error || null,
             provider: statusData.provider || "meshy",
           });
@@ -103,6 +110,7 @@ export async function GET(request: NextRequest) {
           progress: apiData.progress || 0,
           status: apiData.status || "UNKNOWN",
           model_urls: apiData.model_urls || {},
+          model_url: apiData.model_url || (apiData.model_urls?.glb), // Include singular form
           task_error: apiData.task_error || null,
           provider: apiData.provider || "meshy",
         });
