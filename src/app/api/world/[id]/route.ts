@@ -24,6 +24,7 @@ export async function GET(
           splatUrl: proxify(presetWorld.splatUrl),
           meshUrl: proxify(presetWorld.meshUrl),
           backgroundMusic: proxify(presetWorld.backgroundMusic),
+          walkingSound: proxify(presetWorld.walkingSound),
           isPreset: true,
         });
       }
@@ -47,6 +48,7 @@ export async function GET(
             proxify(job.convertedMeshUrl || job.output.converted_mesh_url) ||
             null,
           backgroundMusic: proxify(job.backgroundMusic),
+          walkingSound: proxify(job.walkingSound),
           isPreset: false,
           status: job.status,
           createdAt: job.createdAt,

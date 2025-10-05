@@ -26,7 +26,11 @@ TRIPO3D_API_KEY=your_tripo3d_api_key
 
 ### Fallback Logic
 
-The system uses Meshy AI as the primary 3D generation service. If Meshy doesn't complete within 2 minutes, it automatically falls back to Tripo3D (if configured). This ensures your models are always generated even if one service is slow or unavailable.
+The system uses Meshy AI as the primary 3D generation service for both **image-to-3D** and **text-to-3D** generation. If Meshy doesn't complete within 1 minute, it automatically falls back to Tripo3D (if configured). This ensures your models are always generated even if one service is slow or unavailable.
+
+**Supported Endpoints with Fallback:**
+- `/api/whiteboard/send` - Image-to-3D (from drawings or image uploads)
+- `/api/whiteboard/text` - Text-to-3D (preview mode only)
 
 ## Getting Started
 
