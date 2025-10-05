@@ -300,7 +300,7 @@ export default function Whiteboard({
           style={{
             position: "fixed",
             inset: 0,
-            zIndex: 100,
+            zIndex: 100001,
             backgroundColor: "rgba(0, 0, 0, 0.5)",
             display: "flex",
             alignItems: "center",

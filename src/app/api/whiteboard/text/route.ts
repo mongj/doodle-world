@@ -262,7 +262,7 @@ export async function POST(request: NextRequest) {
           console.log("[Fallback Text] Starting 10-second timeout timer for Meshy task:", taskId);
           
           // Wait 10 seconds
-          await sleep(10000);
+          await sleep(10);
           
           // Check if Meshy task completed
           const storage = getStorage();
