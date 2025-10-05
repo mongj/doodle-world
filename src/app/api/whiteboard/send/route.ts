@@ -182,7 +182,7 @@ async function pollTripo3DTask(taskId: string, originalMeshyId: string, maxAttem
 
 export async function POST(request: NextRequest) {
   try {
-    const { image_url } = await request.json();
+    const { image_url, use_gemini = true, custom_prompt } = await request.json();
 
     if (!image_url) {
       return NextResponse.json({ error: "Missing image_url" }, { status: 400 });
@@ -198,7 +198,7 @@ export async function POST(request: NextRequest) {
     // Gemini enhancement step
     let enhancedImageUrl = image_url;
     
-    if (GEMINI_API_KEY) {
+    if (use_gemini && GEMINI_API_KEY) {
       try {
         console.log("[Gemini] Fetching original image from:", image_url);
         
@@ -233,6 +233,12 @@ export async function POST(request: NextRequest) {
         
         console.log("[Gemini] Calling Gemini 2.5 Flash Image API...");
         
+        // Use custom prompt or default prompt
+        const promptText = custom_prompt || 
+          "You will be provided with a doodle. Make a 3d model of it. Give it a lot of depth, it should not look like a flat drawing, but a 4d realistic object.";
+        
+        console.log("[Gemini] Using prompt:", promptText);
+        
         // Call Gemini 2.5 Flash Image API
         const geminiResponse = await fetch(
           "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent",
@@ -253,7 +259,7 @@ export async function POST(request: NextRequest) {
                       },
                     },
                     { 
-                      text: "You will be provided with a doodle. Make a 3d model of it. Give it a lot of depth, it should not look like a flat drawing, but a 4d realistic objeect." 
+                      text: promptText
                     },
                   ],
                 },
@@ -301,6 +307,8 @@ export async function POST(request: NextRequest) {
         console.error("[Gemini] Error during enhancement:", geminiError);
         console.log("[Gemini] Falling back to original image");
       }
+    } else if (!use_gemini) {
+      console.log("[Gemini] Enhancement disabled by user, skipping");
     } else {
       console.log("[Gemini] API key not configured, skipping enhancement");
     }

@@ -18,6 +18,10 @@ export default function Whiteboard({
   onGenerationComplete 
 }: WhiteboardProps) {
   const [editor, setEditor] = useState<Editor | null>(null);
+  const [showOptionsModal, setShowOptionsModal] = useState(false);
+  const [localUseGemini, setLocalUseGemini] = useState(true);
+  const [localCustomPrompt, setLocalCustomPrompt] = useState("");
+  const [isTextareaFocused, setIsTextareaFocused] = useState(false);
 
   const handleEditorMount = (instance: Editor) => {
     setEditor(instance);
@@ -35,18 +39,40 @@ export default function Whiteboard({
     }
 
     const handleEsc = (e: KeyboardEvent) => {
+      // Don't handle shortcuts if textarea is focused
+      if (isTextareaFocused) return;
+      
       if (e.code === "Escape") {
-        onClose();
+        if (showOptionsModal) {
+          setShowOptionsModal(false);
+        } else {
+          onClose();
+        }
       }
     };
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
-  }, [onClose]);
+  }, [onClose, showOptionsModal, isTextareaFocused]);
 
-  const handleSendImage = async () => {
+  // Set a global flag when textarea is focused to disable all shortcuts
+  useEffect(() => {
+    if (isTextareaFocused) {
+      document.body.setAttribute('data-textarea-focused', 'true');
+    } else {
+      document.body.removeAttribute('data-textarea-focused');
+    }
+  }, [isTextareaFocused]);
+
+  const handleCreateClick = () => {
+    if (!editor) return;
+    setShowOptionsModal(true);
+  };
+
+  const handleGenerate = async () => {
     if (!editor) return;
 
-    // Close whiteboard immediately
+    // Close modal and whiteboard
+    setShowOptionsModal(false);
     onClose();
 
     try {
@@ -77,7 +103,11 @@ export default function Whiteboard({
       const response = await fetch("/api/whiteboard/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_url: imageUrl }),
+        body: JSON.stringify({ 
+          image_url: imageUrl,
+          use_gemini: localUseGemini,
+          custom_prompt: localCustomPrompt || undefined,
+        }),
       });
 
       const data = await response.json();
@@ -198,8 +228,9 @@ export default function Whiteboard({
         onClick={(e) => e.stopPropagation()}
       >
         <Tldraw onMount={handleEditorMount} />
+
         <button
-          onClick={handleSendImage}
+          onClick={handleCreateClick}
           disabled={!editor}
           style={{
             position: "absolute",
@@ -231,6 +262,165 @@ export default function Whiteboard({
           Create 3D Model
         </button>
       </div>
+
+      {/* Options Modal */}
+      {showOptionsModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+          onClick={() => setShowOptionsModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "12px",
+              padding: "24px",
+              maxWidth: "500px",
+              width: "100%",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2
+              style={{
+                fontSize: "20px",
+                fontWeight: "bold",
+                marginBottom: "16px",
+                color: "#1f2937",
+              }}
+            >
+              Generate 3D Model
+            </h2>
+
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                marginBottom: "16px",
+                cursor: "pointer",
+                fontSize: "15px",
+                fontWeight: "600",
+                color: "#111827",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={localUseGemini}
+                onChange={(e) => setLocalUseGemini(e.target.checked)}
+                style={{
+                  width: "18px",
+                  height: "18px",
+                  cursor: "pointer",
+                }}
+              />
+              Enhance with Gemini 2.5 Flash Image
+            </label>
+
+            {localUseGemini && (
+              <div style={{ marginBottom: "20px" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    marginBottom: "8px",
+                    color: "#1f2937",
+                  }}
+                >
+                  Custom Prompt (optional):
+                </label>
+                <textarea
+                  value={localCustomPrompt}
+                  onChange={(e) => setLocalCustomPrompt(e.target.value)}
+                  onFocus={() => setIsTextareaFocused(true)}
+                  onBlur={() => setIsTextareaFocused(false)}
+                  placeholder="e.g., Make it look like a realistic fantasy creature with scales and wings"
+                  style={{
+                    width: "100%",
+                    minHeight: "80px",
+                    padding: "10px",
+                    borderRadius: "6px",
+                    border: "2px solid #d1d5db",
+                    fontSize: "14px",
+                    fontFamily: "inherit",
+                    resize: "vertical",
+                    color: "#111827",
+                  }}
+                />
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#6b7280",
+                    marginTop: "6px",
+                  }}
+                >
+                  Leave empty for default: &quot;Make a 3d model with depth and realism&quot;
+                </div>
+              </div>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                onClick={() => setShowOptionsModal(false)}
+                style={{
+                  backgroundColor: "#e5e7eb",
+                  color: "#1f2937",
+                  padding: "12px 24px",
+                  borderRadius: "8px",
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  fontSize: "15px",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#d1d5db";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#e5e7eb";
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleGenerate}
+                style={{
+                  backgroundColor: "#8b5cf6",
+                  color: "white",
+                  padding: "12px 24px",
+                  borderRadius: "8px",
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  fontSize: "15px",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#7c3aed";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#8b5cf6";
+                }}
+              >
+                Generate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

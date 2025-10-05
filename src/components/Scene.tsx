@@ -283,6 +283,11 @@ export default function Scene({
 
   useEffect(() => {
     const handleWhiteboardShortcut = (e: KeyboardEvent) => {
+      // Don't handle shortcuts if textarea is focused
+      if (document.body.getAttribute('data-textarea-focused') === 'true') {
+        return;
+      }
+
       // Handle Escape key for closing modals
       if (e.code === "Escape") {
         if (showTextModal) {
