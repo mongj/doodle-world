@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       typeof textPromptRaw === "string" && textPromptRaw.trim().length > 0
         ? textPromptRaw.trim()
         : null;
-    const model = (formData.get("model") as string) || "Marble 0.1-mini";
+    const model = (formData.get("model") as string) || "Marble 0.1-plus";
 
     // Require image; text is optional when image is provided
     if (!image) {
