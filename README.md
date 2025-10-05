@@ -14,7 +14,7 @@ MESHY_JOB_STATUS_URL_TEMPLATE=https://api.meshy.ai/v2/image-to-3d/{id}
 GEMINI_API_KEY=your_gemini_api_key
 
 # Tripo3D API (Fallback 3D generation service - optional)
-# If Meshy doesn't complete within 2 minutes, automatically fallbacks to Tripo3D
+# If Meshy doesn't complete within 10 seconds, automatically fallbacks to Tripo3D
 TRIPO3D_API_KEY=your_tripo3d_api_key
 ```
 
@@ -26,7 +26,7 @@ TRIPO3D_API_KEY=your_tripo3d_api_key
 
 ### Fallback Logic
 
-The system uses Meshy AI as the primary 3D generation service for both **image-to-3D** and **text-to-3D** generation. If Meshy doesn't complete within 1 minute, it automatically falls back to Tripo3D (if configured). This ensures your models are always generated even if one service is slow or unavailable.
+The system uses Meshy AI as the primary 3D generation service for both **image-to-3D** and **text-to-3D** generation. If Meshy doesn't complete within 10 seconds, it automatically falls back to Tripo3D (if configured). This ensures your models are always generated even if one service is slow or unavailable.
 
 **Supported Endpoints with Fallback:**
 - `/api/whiteboard/send` - Image-to-3D (from drawings or image uploads)
