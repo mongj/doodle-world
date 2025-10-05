@@ -208,33 +208,106 @@ export default function Scene({
   // Inventory items - easily extensible for future generated models
   const inventoryItems: InventoryItem[] = [
     {
-      id: "orc",
-      name: "Orc",
-      modelUrl: "orc.glb",
-      sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3", "/sfx/orc_3.mp3"],
+      id: "duck",
+      name: "Duck",
+      modelUrl: "/assets/homemade/duck.glb",
+      sfx: ["/sfx/dog_1.mp3"], // Placeholder - add duck sounds later
+    },
+    // Gandalf animations
+    {
+      id: "gandalf-walking",
+      name: "Gandalf (Walking)",
+      modelUrl: "/assets/homemade/gandalf/Animation_Walking_withSkin.glb",
+      sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3"],
     },
     {
-      id: "doggy",
-      name: "Doggy",
-      modelUrl: "/assets/doggy.glb",
-      sfx: ["/sfx/dog_1.mp3", "/sfx/dog_2.mp3", "/sfx/dog_3.mp3"],
+      id: "gandalf-running",
+      name: "Gandalf (Running)",
+      modelUrl: "/assets/homemade/gandalf/Animation_Running_withSkin.glb",
+      sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3"],
     },
     {
-      id: "dragon",
-      name: "Dragon",
-      modelUrl: "/assets/dragon.glb",
-      sfx: ["/sfx/dragon_1.mp3", "/sfx/dragon_2.mp3"],
+      id: "gandalf-backflip",
+      name: "Gandalf (Backflip)",
+      modelUrl: "/assets/homemade/gandalf/Animation_Backflip_withSkin.glb",
+      sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3"],
     },
     {
-      id: "furry",
-      name: "Furry",
-      modelUrl: "/assets/furry.glb",
+      id: "gandalf-spin-jump",
+      name: "Gandalf (Spin Jump)",
+      modelUrl: "/assets/homemade/gandalf/Animation_360_Power_Spin_Jump_withSkin.glb",
+      sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3"],
+    },
+    {
+      id: "groupphoto",
+      name: "Group Photo",
+      modelUrl: "/assets/homemade/groupphoto.glb",
+    },
+    {
+      id: "macbook",
+      name: "MacBook",
+      modelUrl: "/assets/homemade/macbook.glb",
+    },
+    // Mermaid animations
+    {
+      id: "mermaid-walking",
+      name: "Mermaid (Walking)",
+      modelUrl: "/assets/homemade/mermaid/Animation_Walking_withSkin.glb",
       sfx: ["/sfx/furry_1.mp3"],
     },
     {
-      id: "peter-dink",
-      name: "Peter Dink",
-      modelUrl: "/assets/peter dink.glb",
+      id: "mermaid-running",
+      name: "Mermaid (Running)",
+      modelUrl: "/assets/homemade/mermaid/Animation_Running_withSkin.glb",
+      sfx: ["/sfx/furry_1.mp3"],
+    },
+    {
+      id: "mermaid-dance",
+      name: "Mermaid (Dance)",
+      modelUrl: "/assets/homemade/mermaid/Animation_Boom_Dance_withSkin.glb",
+      sfx: ["/sfx/furry_1.mp3"],
+    },
+    {
+      id: "mermaid-agree",
+      name: "Mermaid (Agree)",
+      modelUrl: "/assets/homemade/mermaid/Animation_Agree_Gesture_withSkin.glb",
+      sfx: ["/sfx/furry_1.mp3"],
+    },
+    {
+      id: "mermaid-spin-jump",
+      name: "Mermaid (Spin Jump)",
+      modelUrl: "/assets/homemade/mermaid/Animation_360_Power_Spin_Jump_withSkin.glb",
+      sfx: ["/sfx/furry_1.mp3"],
+    },
+    {
+      id: "mlp",
+      name: "My Little Pony",
+      modelUrl: "/assets/homemade/mlp.glb",
+      sfx: ["/sfx/dog_2.mp3"], // Placeholder - add pony sounds later
+    },
+    {
+      id: "redbull",
+      name: "Red Bull",
+      modelUrl: "/assets/homemade/redbull.glb",
+    },
+    // Santa animations
+    {
+      id: "santa-walking",
+      name: "Santa (Walking)",
+      modelUrl: "/assets/homemade/santa/Animation_Walking_withSkin.glb",
+      sfx: ["/sfx/orc_3.mp3"],
+    },
+    {
+      id: "santa-running",
+      name: "Santa (Running)",
+      modelUrl: "/assets/homemade/santa/Animation_Running_withSkin.glb",
+      sfx: ["/sfx/orc_3.mp3"],
+    },
+    {
+      id: "santa-spin-jump",
+      name: "Santa (Spin Jump)",
+      modelUrl: "/assets/homemade/santa/Animation_360_Power_Spin_Jump_withSkin.glb",
+      sfx: ["/sfx/orc_3.mp3"],
     },
   ];
 
@@ -401,6 +474,12 @@ export default function Scene({
             }, 100);
           }
         }
+      } else if (e.code === "KeyV") {
+        // Clear all spawned dynamic models
+        if ((window as any).__CLEAR_DYNAMIC_MODELS__) {
+          (window as any).__CLEAR_DYNAMIC_MODELS__();
+          console.log("Cleared all spawned models");
+        }
       } else if (e.code === "KeyH") {
         try {
           if (controlsRef.current) {
@@ -485,12 +564,13 @@ export default function Scene({
       // Jenga tower
       const jengaBlocks: Array<{ mesh: THREE.Mesh; body: RAPIER.RigidBody }> =
         [];
-      const dynamicModels: Array<{
-        root: THREE.Object3D;
-        body: RAPIER.RigidBody;
-        lastVelocity: THREE.Vector3;
-        soundEffects?: AudioBuffer[];
-      }> = [];
+        const dynamicModels: Array<{
+          root: THREE.Object3D;
+          body: RAPIER.RigidBody;
+          lastVelocity: THREE.Vector3;
+          soundEffects?: AudioBuffer[];
+          mixer?: THREE.AnimationMixer;
+        }> = [];
       const bodyToMesh = new Map<number, THREE.Mesh>();
       const projectileBodies = new Set<number>();
       const meshToBody = new Map<THREE.Mesh, RAPIER.RigidBody>();
@@ -881,17 +961,20 @@ export default function Scene({
         Array<{ bone: THREE.Bone; body: RAPIER.RigidBody }>
       > = {};
 
-      async function loadDynamicModel(
-        url: string,
-        soundUrls?: string[]
-      ): Promise<void> {
-        try {
-          const forward = new THREE.Vector3();
-          camera.getWorldDirection(forward);
-          forward.normalize();
-          const spawnPosition = camera.position
-            .clone()
-            .addScaledVector(forward, 3);
+       async function loadDynamicModel(
+         url: string,
+         soundUrls?: string[]
+       ): Promise<void> {
+         try {
+           // Spawn right in front of the user's face at eye level
+           const forward = new THREE.Vector3();
+           camera.getWorldDirection(forward);
+           forward.normalize();
+           
+           // Spawn 1.5 units in front at eye level (closer and more visible)
+           const spawnPosition = camera.position
+             .clone()
+             .addScaledVector(forward, 1.5);
 
           // Load sound effects if provided (with caching)
           let soundBuffers: AudioBuffer[] | undefined;
@@ -990,6 +1073,7 @@ export default function Scene({
             body: RAPIER.RigidBody;
             lastVelocity: THREE.Vector3;
             soundEffects?: AudioBuffer[];
+            mixer?: THREE.AnimationMixer;
           } = {
             root: new THREE.Object3D(),
             body: sharedBody,
@@ -1001,19 +1085,27 @@ export default function Scene({
           scene.add(dynamicEntry.root);
           dynamicEntry.root.updateMatrixWorld(true);
 
+          // Setup animations if available
+          if (gltf.animations && gltf.animations.length > 0) {
+            const mixer = new THREE.AnimationMixer(gltf.scene);
+            dynamicEntry.mixer = mixer;
+            
+            // Play all animations (they might be layered)
+            gltf.animations.forEach((clip) => {
+              const action = mixer.clipAction(clip);
+              action.play();
+            });
+            
+            console.log(`Started ${gltf.animations.length} animation(s) for model`);
+          }
+
           // Play spawn sound
           if (soundBuffers && soundBuffers.length > 0 && audioContext) {
             const randomSound =
               soundBuffers[Math.floor(Math.random() * soundBuffers.length)];
             playAudio(audioContext, randomSound, 0.6, 1.0, muted);
           }
-          const parentQuaternionInverse = dynamicEntry.root.quaternion
-            .clone()
-            .invert();
 
-          const tempPosition = new THREE.Vector3();
-          const tempQuaternion = new THREE.Quaternion();
-          const tempScale = new THREE.Vector3();
           const tempBox = new THREE.Box3();
 
           // Performance optimization: Use a single compound bounding box instead of trimesh for each mesh
@@ -1026,68 +1118,76 @@ export default function Scene({
 
           // Calculate overall bounding box for the entire model (more efficient than per-mesh colliders)
           const overallBox = new THREE.Box3();
-          for (const mesh of meshes) {
-            mesh.updateWorldMatrix(true, false);
-            tempBox.setFromObject(mesh);
-            overallBox.union(tempBox);
+          
+          if (meshes.length === 0) {
+            console.warn("No meshes found in model, creating default collider");
+            // Create a default 1x1x1 box if no meshes found
+            const defaultCollider = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5)
+              .setFriction(0.8)
+              .setRestitution(0.05);
+            world.createCollider(defaultCollider, sharedBody);
+          } else {
+            for (const mesh of meshes) {
+              mesh.updateWorldMatrix(true, false);
+              tempBox.setFromObject(mesh);
+              overallBox.union(tempBox);
+            }
+
+            const center = new THREE.Vector3();
+            const size = new THREE.Vector3();
+            overallBox.getCenter(center);
+            overallBox.getSize(size);
+
+            console.log(`Model bounding box - Size: (${size.x.toFixed(2)}, ${size.y.toFixed(2)}, ${size.z.toFixed(2)})`);
+
+            // Check if bounding box is valid
+            if (size.x === 0 || size.y === 0 || size.z === 0 || isNaN(size.x)) {
+              console.warn("Invalid bounding box, using default collider");
+              const defaultCollider = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5)
+                .setFriction(0.8)
+                .setRestitution(0.05);
+              world.createCollider(defaultCollider, sharedBody);
+            } else {
+              // Transform to local space
+              const localCenter = center.clone();
+              dynamicEntry.root.worldToLocal(localCenter);
+              localCenter.multiplyScalar(DYNAMIC_MODEL_SCALE);
+
+              const halfExtents = size
+                .clone()
+                .multiplyScalar(DYNAMIC_MODEL_SCALE * 0.5);
+
+              // Create a single cuboid collider for the entire model (much faster than trimesh)
+              const colliderDesc = RAPIER.ColliderDesc.cuboid(
+                halfExtents.x,
+                halfExtents.y,
+                halfExtents.z
+              )
+                .setTranslation(localCenter.x, localCenter.y, localCenter.z)
+                .setFriction(0.8)
+                .setRestitution(0.05);
+              world.createCollider(colliderDesc, sharedBody);
+              console.log(`Created physics collider with half-extents: (${halfExtents.x.toFixed(2)}, ${halfExtents.y.toFixed(2)}, ${halfExtents.z.toFixed(2)})`);
+            }
           }
 
-          const center = new THREE.Vector3();
-          const size = new THREE.Vector3();
-          overallBox.getCenter(center);
-          overallBox.getSize(size);
+          // Add entire scene to root (preserves animation hierarchy)
+          gltf.scene.scale.set(
+            DYNAMIC_MODEL_SCALE,
+            DYNAMIC_MODEL_SCALE,
+            DYNAMIC_MODEL_SCALE
+          );
+          gltf.scene.position.set(0, 0, 0);
+          gltf.scene.rotation.set(0, 0, 0);
+          dynamicEntry.root.add(gltf.scene);
 
-          // Transform to local space
-          const localCenter = center.clone();
-          dynamicEntry.root.worldToLocal(localCenter);
-          localCenter.multiplyScalar(DYNAMIC_MODEL_SCALE);
-
-          const halfExtents = size
-            .clone()
-            .multiplyScalar(DYNAMIC_MODEL_SCALE * 0.5);
-
-          // Create a single cuboid collider for the entire model (much faster than trimesh)
-          const colliderDesc = RAPIER.ColliderDesc.cuboid(
-            halfExtents.x,
-            halfExtents.y,
-            halfExtents.z
-          )
-            .setTranslation(localCenter.x, localCenter.y, localCenter.z)
-            .setFriction(0.8)
-            .setRestitution(0.05);
-          world.createCollider(colliderDesc, sharedBody);
-
-          // Add meshes to the scene
+          // Register meshes for raycasting and grabbing
           gltf.scene.traverse((child) => {
-            if (!(child as THREE.Mesh).isMesh) return;
-            const mesh = child as THREE.Mesh;
-
-            mesh.updateWorldMatrix(true, false);
-            mesh.matrixWorld.decompose(tempPosition, tempQuaternion, tempScale);
-
-            const scaledScale = new THREE.Vector3(
-              tempScale.x * DYNAMIC_MODEL_SCALE,
-              tempScale.y * DYNAMIC_MODEL_SCALE,
-              tempScale.z * DYNAMIC_MODEL_SCALE
-            );
-
-            const worldPosition = tempPosition.clone();
-            const localPosition = worldPosition.clone();
-            dynamicEntry.root.worldToLocal(localPosition);
-            localPosition.multiplyScalar(DYNAMIC_MODEL_SCALE);
-
-            const localQuaternion = tempQuaternion
-              .clone()
-              .premultiply(parentQuaternionInverse);
-
-            mesh.parent?.remove(mesh);
-            mesh.position.copy(localPosition);
-            mesh.quaternion.copy(localQuaternion);
-            mesh.scale.copy(scaledScale);
-            dynamicEntry.root.add(mesh);
-
-            meshToBody.set(mesh, sharedBody);
-            grabbableMeshes.push(mesh);
+            if ((child as THREE.Mesh).isMesh) {
+              const mesh = child as THREE.Mesh;
+              meshToBody.set(mesh, sharedBody);
+              grabbableMeshes.push(mesh);
+            }
           });
 
           bodyToMesh.set(sharedBody.handle, dynamicEntry.root as THREE.Mesh);
@@ -1099,6 +1199,76 @@ export default function Scene({
       }
 
       (window as any).__LOAD_DYNAMIC_MODEL__ = loadDynamicModel;
+
+      // Function to clear all spawned dynamic models and projectiles
+      function clearAllDynamicModels() {
+        console.log(`Clearing ${dynamicModels.length} dynamic models and ${projectiles.length} projectiles...`);
+        
+        // Remove each model from the scene and physics
+        for (const model of dynamicModels) {
+          try {
+            // Remove from scene
+            scene.remove(model.root);
+            
+            // Dispose of animation mixer
+            if (model.mixer) {
+              model.mixer.stopAllAction();
+            }
+            
+            // Remove physics body
+            try {
+              world.removeRigidBody(model.body);
+            } catch {
+              // Body may already be removed
+            }
+            
+            // Remove from body-to-mesh map
+            bodyToMesh.delete(model.body.handle);
+            
+            // Remove meshes from grabbable list and mesh-to-body map
+            model.root.traverse((child) => {
+              if ((child as THREE.Mesh).isMesh) {
+                const mesh = child as THREE.Mesh;
+                meshToBody.delete(mesh);
+                const index = grabbableMeshes.indexOf(mesh);
+                if (index > -1) {
+                  grabbableMeshes.splice(index, 1);
+                }
+              }
+            });
+          } catch (error) {
+            console.warn("Error removing model:", error);
+          }
+        }
+        
+        // Clear all projectiles
+        for (const projectile of projectiles) {
+          try {
+            // Remove from scene
+            scene.remove(projectile.mesh);
+            
+            // Remove physics body
+            try {
+              world.removeRigidBody(projectile.body);
+            } catch {
+              // Body may already be removed
+            }
+            
+            // Remove from maps
+            bodyToMesh.delete(projectile.body.handle);
+            projectileBodies.delete(projectile.body.handle);
+          } catch (error) {
+            console.warn("Error removing projectile:", error);
+          }
+        }
+        
+        // Clear the arrays
+        dynamicModels.length = 0;
+        projectiles.length = 0;
+        console.log("✓ All dynamic models and projectiles cleared");
+      }
+
+      (window as any).__CLEAR_DYNAMIC_MODELS__ = clearAllDynamicModels;
 
       // Input handling
       const keyState: Record<string, boolean> = {};
@@ -1577,8 +1747,20 @@ export default function Scene({
         sparkRenderer?.update({ scene });
         updateHover();
 
+        // Update character animation mixers
         for (const mixer of Object.values(animationMixers)) {
           mixer?.update(frameTime);
+        }
+
+        // Update dynamic model animation mixers
+        for (const model of dynamicModels) {
+          if (model.mixer && mounted) {
+            try {
+              model.mixer.update(frameTime);
+            } catch {
+              continue;
+            }
+          }
         }
 
         renderer.render(scene, camera);
@@ -2096,6 +2278,9 @@ export default function Scene({
                     <span className="font-semibold">I:</span> Inventory
                   </p>
                   <p>
+                    <span className="font-semibold">V:</span> Clear All
+                  </p>
+                  <p>
                     <span className="font-semibold">H:</span> Home
                   </p>
                 </div>
@@ -2116,7 +2301,7 @@ export default function Scene({
             <p className="text-white text-sm font-medium drop-shadow-lg">
               WASD: Move • R/F: Up/Down • Space: Jump • Click: Shoot/Grab •
               Arrows: Rotate • .: Launch • M: Debug • L: Whiteboard • U: Upload
-              • T: Text • I: Inventory • H: Home
+              • T: Text • I: Inventory • V: Clear All • H: Home
             </p>
           </div>
 
