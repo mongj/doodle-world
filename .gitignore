@@ -42,11 +42,7 @@ next-env.d.ts
 
 meshy_status.json
 
-# job storage
-/jobs
 
-# meshy task status files
-/meshy_tasks
 *.jpg
 
 tripo3d_test.ipynb
