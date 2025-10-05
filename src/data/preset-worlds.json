@@ -30,21 +30,11 @@
     "isPreset": true
   },
   {
-    "id": "1e147a74-6424-48d8-a5f4-c14d2b7b1ceb",
-    "name": "Halloween at SOCH",
-    "thumbnailUrl": "/cdn-proxy/1e147a74-6424-48d8-a5f4-c14d2b7b1ceb/26208878_image_prompt.png",
-    "splatUrl": "/cdn-proxy/1e147a74-6424-48d8-a5f4-c14d2b7b1ceb/7dfc4aef-f4c1-4ee0-9eb6-41f550ec3172_ceramic.ply",
-    "meshUrl": "/gcs-proxy/doodle-world-static/conversions/converted_20251005_052233.glb",
-    "backgroundMusic": "/haunted_campus.mp3",
-    "walkingSound": "/sfx/walking_wood.mp3",
-    "isPreset": true
-  },
-  {
     "id": "c627cf51-b9ad-4548-8ac1-56f13e14440c",
     "name": "HackHarvard",
-    "thumbnailUrl": "https://cdn.marble.worldlabs.ai/c627cf51-b9ad-4548-8ac1-56f13e14440c/f4b3ab17_image_prompt.jpeg",
-    "splatUrl": "https://cdn.marble.worldlabs.ai/c627cf51-b9ad-4548-8ac1-56f13e14440c/3dce471b-1171-44c3-a817-2a17aef4e59f_ceramic.ply",
-    "meshUrl": "https://storage.googleapis.com/doodle-world-static/conversions/converted_20251005_061815.glb",
+    "thumbnailUrl": "/cdn-proxy/c627cf51-b9ad-4548-8ac1-56f13e14440c/f4b3ab17_image_prompt.jpeg",
+    "splatUrl": "/cdn-proxy/c627cf51-b9ad-4548-8ac1-56f13e14440c/3dce471b-1171-44c3-a817-2a17aef4e59f_ceramic.ply",
+    "meshUrl": "/gcs-proxy/doodle-world-static/conversions/converted_20251005_061815.glb",
     "backgroundMusic": null,
     "walkingSound": "/sfx/walking_wood.mp3",
     "isPreset": true
