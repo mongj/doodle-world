@@ -15,6 +15,8 @@ interface Job {
   output: any;
   meshConversionStatus?: string;
   convertedMeshUrl?: string;
+  musicGenerationStatus?: string;
+  backgroundMusic?: string;
 }
 
 interface World {
@@ -144,6 +146,8 @@ export default function Home() {
                 updatedAt: data.updatedAt,
                 meshConversionStatus: data.meshConversionStatus,
                 convertedMeshUrl: data.convertedMeshUrl,
+                musicGenerationStatus: data.musicGenerationStatus,
+                backgroundMusic: data.backgroundMusic,
               }
             : job
         )
@@ -302,7 +306,7 @@ export default function Home() {
         {/* OR Divider */}
         <div className="max-w-7xl mx-auto flex items-center gap-4 my-8">
           <div className="h-px bg-gray-300 flex-1"></div>
-          <span className="text-gray-500 text-sm tracking-wide"> OR </span>
+          <span className="text-gray-500 text-sm tracking-wide"> LIBRARY </span>
           <div className="h-px bg-gray-300 flex-1"></div>
         </div>
 
@@ -324,9 +328,9 @@ export default function Home() {
               <Link
                 key={world.id}
                 href={`/world/${world.id}`}
-                className={`bg-gradient-to-br ${gradient} rounded-3xl p-8 shadow-lg hover:shadow-xl hover:scale-105 transition-all cursor-pointer block`}
+                className={`bg-gradient-to-br ${gradient} rounded-3xl p-4 shadow-lg hover:shadow-xl transition-all cursor-pointer block`}
               >
-                <div className="bg-white rounded-2xl overflow-hidden mb-4">
+                <div className="bg-white rounded-2xl overflow-hidden h-full hover:scale-105 transition-transform">
                   {world.thumbnailUrl && (
                     <div className="aspect-video bg-gray-200 relative">
                       <img
@@ -359,125 +363,35 @@ export default function Home() {
         </div>
 
         {/* Jobs Section */}
-        {jobs.length > 0 && (
+        {jobs.filter((job) => {
+          // Hide fully completed jobs
+          const isFullyComplete =
+            job.status === "SUCCEEDED" &&
+            (job.meshConversionStatus === "completed" ||
+              job.meshConversionStatus === "failed") &&
+            (job.musicGenerationStatus === "completed" ||
+              job.musicGenerationStatus === "failed");
+          return !isFullyComplete;
+        }).length > 0 && (
           <div className="max-w-7xl mx-auto">
-            <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">
-              Generation Jobs
+            <h2 className="text-3xl font-bold text-gray-800 mb-6 text-left">
+              Generating worlds
             </h2>
             <div className="space-y-4">
-              {jobs.map((job) => (
-                <div
-                  key={job.id}
-                  className="bg-white rounded-2xl p-6 shadow-lg border-2 border-purple-200"
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex-1">
-                      <p className="text-gray-700 font-medium mb-2">
-                        {job.prompt}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Model: {job.model} • Created:{" "}
-                        {new Date(job.createdAt).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="ml-4">
-                      <StatusBadge status={job.status} />
-                    </div>
-                  </div>
-
-                  {/* Progress or Error */}
-                  {job.status === "PENDING" ||
-                  job.status === "INITIALIZING" ||
-                  job.status === "PROCESSING" ? (
-                    <div className="mt-4">
-                      <div className="flex items-center gap-2 text-blue-600">
-                        <div className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                        <span className="text-sm font-medium">
-                          Generating world... This may take 1-5 minutes
-                        </span>
-                      </div>
-                    </div>
-                  ) : job.status === "FAILED" ? (
-                    <div className="mt-4 p-3 bg-red-50 rounded-lg text-red-700 text-sm">
-                      ❌ Generation failed: {job.error || "Unknown error"}
-                    </div>
-                  ) : job.status === "SUCCEEDED" && job.output ? (
-                    <div className="mt-4 space-y-2">
-                      <p className="text-green-600 font-medium">
-                        ✅ Generation complete!
-                      </p>
-                      {job.meshConversionStatus === "pending" && (
-                        <div className="flex items-center gap-2 text-orange-600 text-sm">
-                          <div className="animate-spin h-4 w-4 border-2 border-orange-600 border-t-transparent rounded-full"></div>
-                          <span>Converting mesh...</span>
-                        </div>
-                      )}
-                      {job.meshConversionStatus === "completed" &&
-                        job.convertedMeshUrl && (
-                          <p className="text-green-600 text-sm">
-                            ✅ Mesh conversion complete!
-                          </p>
-                        )}
-                      {job.meshConversionStatus === "failed" && (
-                        <p className="text-orange-600 text-sm">
-                          ⚠️ Mesh conversion in progress or failed
-                        </p>
-                      )}
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        {job.output.spz_urls?.["500k"] && (
-                          <a
-                            href={job.output.spz_urls["500k"]}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-center"
-                          >
-                            Download SPZ (500k)
-                          </a>
-                        )}
-                        {job.output.ply_url && (
-                          <a
-                            href={job.output.ply_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-4 py-2 bg-pink-100 text-pink-700 rounded-lg hover:bg-pink-200 transition-colors text-center"
-                          >
-                            Download PLY
-                          </a>
-                        )}
-                        {job.convertedMeshUrl ? (
-                          <a
-                            href={job.convertedMeshUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-center"
-                          >
-                            Download Converted Mesh
-                          </a>
-                        ) : job.output.collider_mesh_url ? (
-                          <a
-                            href={job.output.collider_mesh_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-center"
-                          >
-                            Download Collider Mesh
-                          </a>
-                        ) : null}
-                        {job.output.wlg_url && (
-                          <a
-                            href={job.output.wlg_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-center"
-                          >
-                            Download WLG
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ))}
+              {jobs
+                .filter((job) => {
+                  // Hide fully completed jobs
+                  const isFullyComplete =
+                    job.status === "SUCCEEDED" &&
+                    (job.meshConversionStatus === "completed" ||
+                      job.meshConversionStatus === "failed") &&
+                    (job.musicGenerationStatus === "completed" ||
+                      job.musicGenerationStatus === "failed");
+                  return !isFullyComplete;
+                })
+                .map((job) => (
+                  <JobCard key={job.id} job={job} />
+                ))}
             </div>
           </div>
         )}
@@ -604,46 +518,195 @@ export default function Home() {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const statusConfig: Record<
-    string,
-    { color: string; label: string; emoji: string }
-  > = {
-    PENDING: {
-      color: "bg-yellow-100 text-yellow-700",
-      label: "Pending",
-      emoji: "⏳",
-    },
-    INITIALIZING: {
-      color: "bg-blue-100 text-blue-700",
-      label: "Initializing",
-      emoji: "🔄",
-    },
-    PROCESSING: {
-      color: "bg-blue-100 text-blue-700",
-      label: "Processing",
-      emoji: "⚙️",
-    },
-    SUCCEEDED: {
-      color: "bg-green-100 text-green-700",
-      label: "Completed",
-      emoji: "✅",
-    },
-    FAILED: { color: "bg-red-100 text-red-700", label: "Failed", emoji: "❌" },
-  };
-
-  const config = statusConfig[status] || {
-    color: "bg-gray-100 text-gray-700",
-    label: status,
-    emoji: "❓",
-  };
+function JobCard({ job }: { job: Job }) {
+  const [isExpanded, setIsExpanded] = useState(true);
 
   return (
-    <span
-      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${config.color}`}
-    >
-      <span>{config.emoji}</span>
-      <span>{config.label}</span>
-    </span>
+    <div className="bg-white rounded-2xl shadow-lg border-2 border-purple-200 overflow-hidden">
+      {/* Header - always visible */}
+      <div
+        className="p-6 cursor-pointer hover:bg-gray-50 transition-colors"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex justify-between items-start">
+          <div className="flex-1">
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-gray-700 font-medium">
+                {job.prompt || "Untitled World"}
+              </p>
+              {job.status === "FAILED" ? (
+                <span className="text-sm font-medium ml-4 text-red-600">
+                  ❌ Failed
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 ml-4 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                  <div className="animate-spin h-3.5 w-3.5 border-2 border-blue-700 border-t-transparent rounded-full"></div>
+                  In Progress
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500">
+              Created: {new Date(job.createdAt).toLocaleString()}
+            </p>
+          </div>
+          <div className="ml-4 flex items-center gap-2">
+            <span
+              className={`transform transition-transform ${
+                isExpanded ? "rotate-180" : ""
+              }`}
+            >
+              ▼
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Expandable Content */}
+      <div
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          isExpanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+        }`}
+      >
+        <div className="px-6 pb-6">
+          {job.status === "FAILED" ? (
+            <div className="p-3 bg-red-50 rounded-lg text-red-700 text-sm">
+              ❌ Generation failed: {job.error || "Unknown error"}
+            </div>
+          ) : (
+            <ProgressSteps job={job} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProgressSteps({ job }: { job: Job }) {
+  // Step 1: World Generation
+  const step1Complete = job.status === "SUCCEEDED";
+  const step1InProgress =
+    job.status === "PENDING" ||
+    job.status === "INITIALIZING" ||
+    job.status === "PROCESSING";
+
+  // Step 2: Mesh Conversion
+  const step2Complete = job.meshConversionStatus === "completed";
+  const step2InProgress = job.meshConversionStatus === "pending";
+  const step2Failed = job.meshConversionStatus === "failed";
+
+  // Step 3: Music Generation
+  const step3Complete = job.musicGenerationStatus === "completed";
+  const step3InProgress = job.musicGenerationStatus === "pending";
+  const step3Failed = job.musicGenerationStatus === "failed";
+
+  return (
+    <div className="mt-4">
+      {/* Progress Steps Row */}
+      <div className="flex items-center">
+        {/* Step 1: World Generation */}
+        <div className="flex flex-col items-center px-4">
+          <div
+            className={`w-12 h-12 rounded-full flex items-center justify-center border-2 ${
+              step1Complete
+                ? "bg-green-100 border-green-500"
+                : step1InProgress
+                ? "bg-blue-100 border-blue-500"
+                : "bg-gray-100 border-gray-300"
+            }`}
+          >
+            {step1Complete ? (
+              <span className="text-green-600 text-xl">✓</span>
+            ) : step1InProgress ? (
+              <div className="animate-spin h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+            ) : (
+              <span className="text-gray-400 text-xl">○</span>
+            )}
+          </div>
+          <p className="text-xs mt-2 text-center font-medium text-gray-700 whitespace-nowrap">
+            World
+            <br />
+            Generation
+          </p>
+        </div>
+
+        {/* Connector Line 1 */}
+        <div className="flex-1 h-1 relative" style={{ top: "-20px" }}>
+          <div
+            className={`h-full transition-colors ${
+              step1Complete ? "bg-green-500" : "bg-gray-300"
+            }`}
+          ></div>
+        </div>
+
+        {/* Step 2: Mesh Generation */}
+        <div className="flex flex-col items-center px-4">
+          <div
+            className={`w-12 h-12 rounded-full flex items-center justify-center border-2 ${
+              step2Complete
+                ? "bg-green-100 border-green-500"
+                : step2InProgress
+                ? "bg-blue-100 border-blue-500"
+                : step2Failed
+                ? "bg-orange-100 border-orange-500"
+                : "bg-gray-100 border-gray-300"
+            }`}
+          >
+            {step2Complete ? (
+              <span className="text-green-600 text-xl">✓</span>
+            ) : step2InProgress ? (
+              <div className="animate-spin h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+            ) : step2Failed ? (
+              <span className="text-orange-600 text-xl">⚠</span>
+            ) : (
+              <span className="text-gray-400 text-xl">○</span>
+            )}
+          </div>
+          <p className="text-xs mt-2 text-center font-medium text-gray-700 whitespace-nowrap">
+            Mesh
+            <br />
+            Generation
+          </p>
+        </div>
+
+        {/* Connector Line 2 */}
+        <div className="flex-1 h-1 relative" style={{ top: "-20px" }}>
+          <div
+            className={`h-full transition-colors ${
+              step2Complete ? "bg-green-500" : "bg-gray-300"
+            }`}
+          ></div>
+        </div>
+
+        {/* Step 3: Music Generation */}
+        <div className="flex flex-col items-center px-4">
+          <div
+            className={`w-12 h-12 rounded-full flex items-center justify-center border-2 ${
+              step3Complete
+                ? "bg-green-100 border-green-500"
+                : step3InProgress
+                ? "bg-blue-100 border-blue-500"
+                : step3Failed
+                ? "bg-orange-100 border-orange-500"
+                : "bg-gray-100 border-gray-300"
+            }`}
+          >
+            {step3Complete ? (
+              <span className="text-green-600 text-xl">✓</span>
+            ) : step3InProgress ? (
+              <div className="animate-spin h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+            ) : step3Failed ? (
+              <span className="text-orange-600 text-xl">⚠</span>
+            ) : (
+              <span className="text-gray-400 text-xl">○</span>
+            )}
+          </div>
+          <p className="text-xs mt-2 text-center font-medium text-gray-700 whitespace-nowrap">
+            Music
+            <br />
+            Generation
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
