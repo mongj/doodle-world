@@ -6,6 +6,7 @@
     "splatUrl": "/cdn-proxy/1f8d7af4-abd5-4272-9682-8e188e3f844c/1a72da9b-28a9-4542-9420-47767f170bdd_ceramic.ply",
     "meshUrl": "/cdn-proxy/collider_meshes/1f8d7af4-abd5-4272-9682-8e188e3f844c_collider.glb",
     "backgroundMusic": "/fantasy_village.mp3",
+    "walkingSound": "/sfx/walking_dirt.mp3",
     "isPreset": true
   },
   {
@@ -15,6 +16,7 @@
     "splatUrl": "/cdn-proxy/a234aac5-5dd4-404f-8dd0-f97146d771d6/9dd0894a-1b04-4588-8bda-79b02745c426_ceramic.ply",
     "meshUrl": "/cdn-proxy/collider_meshes/a234aac5-5dd4-404f-8dd0-f97146d771d6_collider.glb",
     "backgroundMusic": "/christmas.mp3",
+    "walkingSound": "/sfx/walking_wood.mp3",
     "isPreset": true
   },
   {
@@ -24,6 +26,7 @@
     "splatUrl": "/cdn-proxy/134f001d-8172-4348-9f3b-4e3062f74837/0cdbfdf4-59a9-4195-af13-49b179b353a1_ceramic.ply",
     "meshUrl": "/cdn-proxy/collider_meshes/134f001d-8172-4348-9f3b-4e3062f74837_collider.glb",
     "backgroundMusic": "/atlantis.mp3",
+    "walkingSound": "/sfx/walking_stone.mp3",
     "isPreset": true
   },
   {

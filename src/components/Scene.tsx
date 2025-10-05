@@ -22,6 +22,7 @@ interface SceneProps {
   meshUrl: string;
   splatUrl: string;
   backgroundMusic?: string;
+  walkingSound?: string;
 }
 
 const GLOBAL_SCALE = 0.7;
@@ -156,6 +157,7 @@ export default function Scene({
   meshUrl,
   splatUrl,
   backgroundMusic,
+  walkingSound,
 }: SceneProps) {
   console.log("rendering scene:", {
     meshUrl: meshUrl,
@@ -623,6 +625,8 @@ export default function Scene({
       let audioContext: AudioContext | null = null;
       const audioBuffers: Record<string, AudioBuffer | AudioBuffer[]> = {};
       const muted = false;
+      let walkingSoundSource: AudioBufferSourceNode | null = null;
+      let isWalkingSoundPlaying = false;
 
       function initAudio() {
         if (audioContext) return;
@@ -630,6 +634,7 @@ export default function Scene({
           (window as Window & { webkitAudioContext?: typeof AudioContext })
             .webkitAudioContext)();
 
+        // Load bounce sound
         fetch(CONFIG.AUDIO_FILES.BOUNCE)
           .then((response) => {
             if (!response.ok) {
@@ -640,15 +645,32 @@ export default function Scene({
           .then((buffer) => audioContext!.decodeAudioData(buffer))
           .then((buffer) => {
             audioBuffers.bounce = buffer;
-            console.log("✓ Audio system initialized");
+            console.log("✓ Bounce audio loaded");
           })
           .catch((error) => {
-            console.warn(
-              "Audio loading failed (audio will be disabled):",
-              error
-            );
-            // Audio is optional, don't block the app
+            console.warn("Bounce audio loading failed:", error);
           });
+
+        // Load walking sound if provided
+        if (walkingSound) {
+          fetch(walkingSound)
+            .then((response) => {
+              if (!response.ok) {
+                throw new Error(
+                  `Failed to load walking audio: ${response.status}`
+                );
+              }
+              return response.arrayBuffer();
+            })
+            .then((buffer) => audioContext!.decodeAudioData(buffer))
+            .then((buffer) => {
+              audioBuffers.walking = buffer;
+              console.log("✓ Walking audio loaded");
+            })
+            .catch((error) => {
+              console.warn("Walking audio loading failed:", error);
+            });
+        }
       }
 
       function playBounceSound(
@@ -683,6 +705,36 @@ export default function Scene({
           pitch,
           muted
         );
+      }
+
+      function playWalkingSound() {
+        if (!audioContext || !audioBuffers.walking || muted) return;
+        if (isWalkingSoundPlaying) return;
+
+        const source = audioContext.createBufferSource();
+        const gainNode = audioContext.createGain();
+
+        source.buffer = audioBuffers.walking as AudioBuffer;
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        gainNode.gain.value = 0.4; // Walking sound at 40% volume
+        source.loop = true; // Loop the walking sound
+        source.start(0);
+
+        walkingSoundSource = source;
+        isWalkingSoundPlaying = true;
+      }
+
+      function stopWalkingSound() {
+        if (walkingSoundSource && isWalkingSoundPlaying) {
+          try {
+            walkingSoundSource.stop();
+          } catch (e) {
+            // Already stopped
+          }
+          walkingSoundSource = null;
+          isWalkingSoundPlaying = false;
+        }
       }
 
       document.addEventListener("click", initAudio, { once: true });
@@ -1122,7 +1174,8 @@ export default function Scene({
 
         let targetX = 0;
         let targetZ = 0;
-        if (moveDir.lengthSq() > 0) {
+        const isMovingHorizontally = moveDir.lengthSq() > 0;
+        if (isMovingHorizontally) {
           moveDir.normalize().multiplyScalar(CONFIG.MOVE_SPEED);
           targetX = moveDir.x;
           targetZ = moveDir.z;
@@ -1134,6 +1187,14 @@ export default function Scene({
         if (keyState.KeyF) targetY -= CONFIG.MOVE_SPEED;
 
         playerBody.setLinvel({ x: targetX, y: targetY, z: targetZ }, true);
+
+        // Handle walking sound
+        const grounded = isPlayerGrounded();
+        if (isMovingHorizontally && grounded && audioBuffers.walking) {
+          playWalkingSound();
+        } else {
+          stopWalkingSound();
+        }
       }
 
       // Projectiles
@@ -1461,6 +1522,9 @@ export default function Scene({
           backgroundMusicRef.current.pause();
         }
 
+        // Stop walking sound
+        stopWalkingSound();
+
         // Dispose physics world
         try {
           if (world && typeof world.free === "function") {
@@ -1750,7 +1814,7 @@ export default function Scene({
           if (statusRes.ok) {
             const statusData = await statusRes.json();
             const progress = statusData.progress || 0;
-            const provider = statusData.provider || 'meshy';
+            const provider = statusData.provider || "meshy";
             setGenerationProgress(Math.max(5, Math.min(95, progress)));
 
             if (progress > 0 && progress < 100) {
