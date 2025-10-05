@@ -446,7 +446,10 @@ export default function Scene({
       );
       camera.rotation.y = Math.PI;
 
-      const renderer = new THREE.WebGLRenderer();
+      const renderer = new THREE.WebGLRenderer({
+        antialias: false, // Disabled for better performance
+        powerPreference: "high-performance", // Use dedicated GPU if available
+      });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(1);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
