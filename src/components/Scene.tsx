@@ -22,6 +22,7 @@ interface SceneProps {
   meshUrl: string;
   splatUrl: string;
   backgroundMusic?: string;
+  walkingSound?: string;
 }
 
 const GLOBAL_SCALE = 0.7;
@@ -156,6 +157,7 @@ export default function Scene({
   meshUrl,
   splatUrl,
   backgroundMusic,
+  walkingSound,
 }: SceneProps) {
   console.log("rendering scene:", {
     meshUrl: meshUrl,
@@ -209,21 +211,25 @@ export default function Scene({
       id: "orc",
       name: "Orc",
       modelUrl: "orc.glb",
+      sfx: ["/sfx/orc_1.mp3", "/sfx/orc_2.mp3", "/sfx/orc_3.mp3"],
     },
     {
       id: "doggy",
       name: "Doggy",
       modelUrl: "/assets/doggy.glb",
+      sfx: ["/sfx/dog_1.mp3", "/sfx/dog_2.mp3", "/sfx/dog_3.mp3"],
     },
     {
       id: "dragon",
       name: "Dragon",
       modelUrl: "/assets/dragon.glb",
+      sfx: ["/sfx/dragon_1.mp3", "/sfx/dragon_2.mp3"],
     },
     {
       id: "furry",
       name: "Furry",
       modelUrl: "/assets/furry.glb",
+      sfx: ["/sfx/furry_1.mp3"],
     },
     {
       id: "peter-dink",
@@ -474,6 +480,8 @@ export default function Scene({
       const dynamicModels: Array<{
         root: THREE.Object3D;
         body: RAPIER.RigidBody;
+        lastVelocity: THREE.Vector3;
+        soundEffects?: AudioBuffer[];
       }> = [];
       const bodyToMesh = new Map<number, THREE.Mesh>();
       const projectileBodies = new Set<number>();
@@ -617,6 +625,8 @@ export default function Scene({
       let audioContext: AudioContext | null = null;
       const audioBuffers: Record<string, AudioBuffer | AudioBuffer[]> = {};
       const muted = false;
+      let walkingSoundSource: AudioBufferSourceNode | null = null;
+      let isWalkingSoundPlaying = false;
 
       function initAudio() {
         if (audioContext) return;
@@ -624,6 +634,7 @@ export default function Scene({
           (window as Window & { webkitAudioContext?: typeof AudioContext })
             .webkitAudioContext)();
 
+        // Load bounce sound
         fetch(CONFIG.AUDIO_FILES.BOUNCE)
           .then((response) => {
             if (!response.ok) {
@@ -634,15 +645,32 @@ export default function Scene({
           .then((buffer) => audioContext!.decodeAudioData(buffer))
           .then((buffer) => {
             audioBuffers.bounce = buffer;
-            console.log("✓ Audio system initialized");
+            console.log("✓ Bounce audio loaded");
           })
           .catch((error) => {
-            console.warn(
-              "Audio loading failed (audio will be disabled):",
-              error
-            );
-            // Audio is optional, don't block the app
+            console.warn("Bounce audio loading failed:", error);
           });
+
+        // Load walking sound if provided
+        if (walkingSound) {
+          fetch(walkingSound)
+            .then((response) => {
+              if (!response.ok) {
+                throw new Error(
+                  `Failed to load walking audio: ${response.status}`
+                );
+              }
+              return response.arrayBuffer();
+            })
+            .then((buffer) => audioContext!.decodeAudioData(buffer))
+            .then((buffer) => {
+              audioBuffers.walking = buffer;
+              console.log("✓ Walking audio loaded");
+            })
+            .catch((error) => {
+              console.warn("Walking audio loading failed:", error);
+            });
+        }
       }
 
       function playBounceSound(
@@ -677,6 +705,36 @@ export default function Scene({
           pitch,
           muted
         );
+      }
+
+      function playWalkingSound() {
+        if (!audioContext || !audioBuffers.walking || muted) return;
+        if (isWalkingSoundPlaying) return;
+
+        const source = audioContext.createBufferSource();
+        const gainNode = audioContext.createGain();
+
+        source.buffer = audioBuffers.walking as AudioBuffer;
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        gainNode.gain.value = 0.4; // Walking sound at 40% volume
+        source.loop = true; // Loop the walking sound
+        source.start(0);
+
+        walkingSoundSource = source;
+        isWalkingSoundPlaying = true;
+      }
+
+      function stopWalkingSound() {
+        if (walkingSoundSource && isWalkingSoundPlaying) {
+          try {
+            walkingSoundSource.stop();
+          } catch (e) {
+            // Already stopped
+          }
+          walkingSoundSource = null;
+          isWalkingSoundPlaying = false;
+        }
       }
 
       document.addEventListener("click", initAudio, { once: true });
@@ -773,7 +831,10 @@ export default function Scene({
         Array<{ bone: THREE.Bone; body: RAPIER.RigidBody }>
       > = {};
 
-      async function loadDynamicModel(url: string): Promise<void> {
+      async function loadDynamicModel(
+        url: string,
+        soundUrls?: string[]
+      ): Promise<void> {
         try {
           const forward = new THREE.Vector3();
           camera.getWorldDirection(forward);
@@ -781,6 +842,24 @@ export default function Scene({
           const spawnPosition = camera.position
             .clone()
             .addScaledVector(forward, 3);
+
+          // Load sound effects if provided
+          let soundBuffers: AudioBuffer[] | undefined;
+          if (soundUrls && soundUrls.length > 0 && audioContext) {
+            soundBuffers = [];
+            for (const soundUrl of soundUrls) {
+              try {
+                const response = await fetch(soundUrl);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await audioContext.decodeAudioData(
+                  arrayBuffer
+                );
+                soundBuffers.push(audioBuffer);
+              } catch (error) {
+                console.warn(`Failed to load sound ${soundUrl}:`, error);
+              }
+            }
+          }
 
           let loadUrl = url;
           try {
@@ -830,14 +909,25 @@ export default function Scene({
           const dynamicEntry: {
             root: THREE.Object3D;
             body: RAPIER.RigidBody;
+            lastVelocity: THREE.Vector3;
+            soundEffects?: AudioBuffer[];
           } = {
             root: new THREE.Object3D(),
             body: sharedBody,
+            lastVelocity: new THREE.Vector3(0, 0, 0),
+            soundEffects: soundBuffers,
           };
           dynamicEntry.root.position.copy(spawnPosition);
           dynamicEntry.root.quaternion.copy(initialQuaternion);
           scene.add(dynamicEntry.root);
           dynamicEntry.root.updateMatrixWorld(true);
+
+          // Play spawn sound
+          if (soundBuffers && soundBuffers.length > 0 && audioContext) {
+            const randomSound =
+              soundBuffers[Math.floor(Math.random() * soundBuffers.length)];
+            playAudio(audioContext, randomSound, 0.6, 1.0, muted);
+          }
           const parentQuaternionInverse = dynamicEntry.root.quaternion
             .clone()
             .invert();
@@ -1084,7 +1174,8 @@ export default function Scene({
 
         let targetX = 0;
         let targetZ = 0;
-        if (moveDir.lengthSq() > 0) {
+        const isMovingHorizontally = moveDir.lengthSq() > 0;
+        if (isMovingHorizontally) {
           moveDir.normalize().multiplyScalar(CONFIG.MOVE_SPEED);
           targetX = moveDir.x;
           targetZ = moveDir.z;
@@ -1096,6 +1187,14 @@ export default function Scene({
         if (keyState.KeyF) targetY -= CONFIG.MOVE_SPEED;
 
         playerBody.setLinvel({ x: targetX, y: targetY, z: targetZ }, true);
+
+        // Handle walking sound
+        const grounded = isPlayerGrounded();
+        if (isMovingHorizontally && grounded && audioBuffers.walking) {
+          playWalkingSound();
+        } else {
+          stopWalkingSound();
+        }
       }
 
       // Projectiles
@@ -1236,6 +1335,40 @@ export default function Scene({
               const rot = model.body.rotation();
               model.root.position.set(pos.x, pos.y, pos.z);
               model.root.quaternion.set(rot.x, rot.y, rot.z, rot.w);
+
+              // Check for collisions and play sounds
+              if (model.soundEffects && model.soundEffects.length > 0) {
+                const currentVelocity = new THREE.Vector3(
+                  model.body.linvel().x,
+                  model.body.linvel().y,
+                  model.body.linvel().z
+                );
+
+                const velocityChange = currentVelocity
+                  .clone()
+                  .sub(model.lastVelocity);
+
+                // If significant velocity change (collision detected)
+                if (
+                  velocityChange.length() > CONFIG.BOUNCE_DETECTION_THRESHOLD
+                ) {
+                  const position = new THREE.Vector3(pos.x, pos.y, pos.z);
+                  const distance = camera.position.distanceTo(position);
+                  const volume = Math.max(
+                    0.2,
+                    0.8 * (1 - distance / CONFIG.VOLUME_DISTANCE_MAX)
+                  );
+
+                  // Play random sound from the array
+                  const randomSound =
+                    model.soundEffects[
+                      Math.floor(Math.random() * model.soundEffects.length)
+                    ];
+                  playAudio(audioContext, randomSound, volume, 1.0, muted);
+                }
+
+                model.lastVelocity.copy(currentVelocity);
+              }
             } catch {
               continue;
             }
@@ -1389,6 +1522,9 @@ export default function Scene({
           backgroundMusicRef.current.pause();
         }
 
+        // Stop walking sound
+        stopWalkingSound();
+
         // Dispose physics world
         try {
           if (world && typeof world.free === "function") {
@@ -1425,8 +1561,8 @@ export default function Scene({
     try {
       // Load the model dynamically using the global function
       if ((window as any).__LOAD_DYNAMIC_MODEL__) {
-        await (window as any).__LOAD_DYNAMIC_MODEL__(item.modelUrl);
-        console.log(`Spawned ${item.name} from inventory`);
+        await (window as any).__LOAD_DYNAMIC_MODEL__(item.modelUrl, item.sfx);
+        console.log(`Spawned ${item.name} from inventory with sound effects`);
       } else {
         console.error("Dynamic model loading not available yet");
       }
@@ -1514,7 +1650,8 @@ export default function Scene({
           previewComplete = true;
           break;
         } else if (statusData.status === "FAILED") {
-          const errorMsg = statusData.task_error?.message || "Preview generation failed";
+          const errorMsg =
+            statusData.task_error?.message || "Preview generation failed";
           alert(`❌ Model Generation Failed\n\n${errorMsg}`);
           throw new Error(errorMsg);
         }
@@ -1600,7 +1737,8 @@ export default function Scene({
             throw new Error("No GLB model URL in response");
           }
         } else if (statusData.status === "FAILED") {
-          const errorMsg = statusData.task_error?.message || "Texture generation failed";
+          const errorMsg =
+            statusData.task_error?.message || "Texture generation failed";
           alert(`❌ Texture Generation Failed\n\n${errorMsg}`);
           throw new Error(errorMsg);
         }
@@ -1670,10 +1808,13 @@ export default function Scene({
       // Start progress polling with taskId
       const progressInterval = setInterval(async () => {
         try {
-          const statusRes = await fetch(`/api/whiteboard/status?taskId=${taskId}`);
+          const statusRes = await fetch(
+            `/api/whiteboard/status?taskId=${taskId}`
+          );
           if (statusRes.ok) {
             const statusData = await statusRes.json();
             const progress = statusData.progress || 0;
+            const provider = statusData.provider || "meshy";
             setGenerationProgress(Math.max(5, Math.min(95, progress)));
 
             if (progress > 0 && progress < 100) {
@@ -1692,14 +1833,17 @@ export default function Scene({
       for (let i = 0; i < maxTries; i++) {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
 
-        const statusRes = await fetch(`/api/whiteboard/status?taskId=${taskId}`);
+        const statusRes = await fetch(
+          `/api/whiteboard/status?taskId=${taskId}`
+        );
         if (!statusRes.ok) continue;
 
         const statusData = await statusRes.json();
 
         if (statusData.status === "FAILED") {
           clearInterval(progressInterval);
-          const errorMsg = statusData.task_error?.message || "Model generation failed";
+          const errorMsg =
+            statusData.task_error?.message || "Model generation failed";
           alert(`❌ Model Generation Failed\n\n${errorMsg}`);
           throw new Error(errorMsg);
         }

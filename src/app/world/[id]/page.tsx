@@ -14,6 +14,7 @@ interface WorldData {
   splatUrl: string;
   meshUrl: string;
   backgroundMusic?: string;
+  walkingSound?: string;
   isPreset: boolean;
 }
 
@@ -90,6 +91,7 @@ export default function WorldPage() {
       meshUrl={world.meshUrl}
       splatUrl={world.splatUrl}
       backgroundMusic={world.backgroundMusic}
+      walkingSound={world.walkingSound}
     />
   );
 }

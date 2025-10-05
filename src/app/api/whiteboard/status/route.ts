@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
             status: statusData.status || "UNKNOWN",
             model_urls: statusData.model_urls || {},
             task_error: statusData.task_error || null,
+            provider: statusData.provider || "meshy",
           });
         }
         
@@ -50,6 +51,7 @@ export async function GET(request: NextRequest) {
             status: statusData.status || "UNKNOWN",
             model_urls: statusData.model_urls || {},
             task_error: statusData.task_error || null,
+            provider: statusData.provider || "meshy",
           });
         }
         
@@ -102,6 +104,7 @@ export async function GET(request: NextRequest) {
           status: apiData.status || "UNKNOWN",
           model_urls: apiData.model_urls || {},
           task_error: apiData.task_error || null,
+          provider: apiData.provider || "meshy",
         });
       }
       
