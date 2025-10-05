@@ -720,7 +720,7 @@ export default function Scene({
       )
         .setFriction(0.8)
         .setRestitution(0.0);
-      world.createCollider(colliderDesc, playerBody);
+      const playerCollider = world.createCollider(colliderDesc, playerBody);
 
       const controls = new PointerLockControls(camera, renderer.domElement);
       controlsRef.current = controls;
@@ -1431,14 +1431,24 @@ export default function Scene({
           }
 
           // Enable/disable physics body
-          if (playerBody) {
+          if (playerBody && playerCollider) {
             if (noclipMode) {
-              // Disable gravity and collisions
+              // Disable gravity and collisions completely
               playerBody.setGravityScale(0.0, true);
               playerBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+              
+              // Make body kinematic (doesn't respond to forces/collisions)
+              playerBody.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+              
+              console.log("[Noclip] Collisions disabled, body is now kinematic");
             } else {
-              // Re-enable gravity
+              // Re-enable gravity and collisions
               playerBody.setGravityScale(1.0, true);
+              
+              // Make body dynamic again (responds to physics)
+              playerBody.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+              
+              console.log("[Noclip] Collisions enabled, body is now dynamic");
             }
           }
         }
@@ -1574,7 +1584,7 @@ export default function Scene({
         if (!controls.isLocked || !playerBody) return;
 
         if (noclipMode) {
-          // Noclip mode: Free flight in all directions
+          // Noclip mode: Free flight in all directions using kinematic movement
           const forward = new THREE.Vector3();
           camera.getWorldDirection(forward);
           forward.normalize();
@@ -1598,19 +1608,22 @@ export default function Scene({
           if (keyState.KeyR) moveDir.add(up);
           if (keyState.KeyF) moveDir.sub(up);
 
-          let targetX = 0;
-          let targetY = 0;
-          let targetZ = 0;
-
+          // For kinematic bodies, move by setting next position directly
           if (moveDir.lengthSq() > 0) {
             // Faster movement in noclip mode
-            moveDir.normalize().multiplyScalar(CONFIG.MOVE_SPEED * 2);
-            targetX = moveDir.x;
-            targetY = moveDir.y;
-            targetZ = moveDir.z;
+            const moveSpeed = CONFIG.MOVE_SPEED * 2;
+            moveDir.normalize().multiplyScalar(moveSpeed * (1/60)); // Adjust for frame rate
+            
+            const currentPos = playerBody.translation();
+            const newPos = {
+              x: currentPos.x + moveDir.x,
+              y: currentPos.y + moveDir.y,
+              z: currentPos.z + moveDir.z
+            };
+            
+            playerBody.setNextKinematicTranslation(newPos);
           }
-
-          playerBody.setLinvel({ x: targetX, y: targetY, z: targetZ }, true);
+          
           stopWalkingSound(); // No walking sound in noclip
         } else {
           // Normal mode: Standard movement with gravity
